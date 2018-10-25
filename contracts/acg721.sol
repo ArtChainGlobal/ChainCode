@@ -3,7 +3,7 @@ pragma solidity ^0.4.22;
 import "helpers/SafeMath.sol";
 
 contract ACG20Interface {
-    function payForArtworkFrom(address _from, address _to, uint256 _value, uint256 _artworkId) public returns (bool) 
+    function payForArtworkFrom(address _from, address _to, uint256 _price, uint256 _commission, uint256 _artworkId) public returns (bool) 
     {}
 }
 
@@ -204,13 +204,14 @@ contract ACG721 is StandardERC721 {
     *      of the specific ACG721 token from seller to buyer.
     * @param _buyer address The address of ACG20 token owner
     * @param _seller address The address of ACG721 token owner
-    * @param _value uint256 the amount of ACG20 tokens to be transferred
+    * @param _price uint256 Amount of ACG20 tokens to be transferred to seller
+    * @param _commission uint256 Amount of ACG20 tokens transferred to contract owner
     * @param _tokenId The ID of ACG721 which the transfer is for
 	*/
-    function receiveApproval(address _buyer, address _seller, uint256 _value, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
+    function receiveApproval(address _buyer, address _seller, uint256 _price, uint256 _commission, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
         require(msg.sender == acg20Contract, "Contract address must match the registered ACG20 contract");
 
-        require(ACG20Interface(acg20Contract).payForArtworkFrom(_buyer, _seller, _value, _tokenId), "ACG20 methold calling must return true");
+        require(ACG20Interface(acg20Contract).payForArtworkFrom(_buyer, _seller, _price, _commission, _tokenId), "ACG20 methold calling must return true");
 
         transferFrom(_seller, _buyer, _tokenId);
         return true;

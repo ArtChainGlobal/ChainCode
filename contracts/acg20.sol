@@ -3,7 +3,7 @@ pragma solidity ^0.4.22;
 import "helpers/SafeMath.sol";
 
 contract ACG721Interface {
-    function receiveApproval(address _from, address _to, uint256 _value, uint256 _tokenId) public returns (bool)
+    function receiveApproval(address _from, address _to, uint256 _price, uint256 _commission, uint256 _tokenId) public returns (bool)
     {}
 }
 
@@ -255,11 +255,14 @@ contract ACG20 is StandardERC20 {
 	* @dev Transfer tokens from one address to another for artwork purchase(support auction)
 	* @param _from address The address which you want to send tokens from
 	* @param _to address The address which you want to transfer to
-	* @param _value uint256 the amount of tokens to be transferred
+	* @param _price uint256 the amount of tokens to be transferred to seller
+	* @param _commission uint256 the amount of tokens to be transferred to contract owner
     * @param _artworkId The ID of artwork which the transfer is for
 	*/
-    function payForArtworkFrom(address _from, address _to, uint256 _value, uint256 _artworkId) public isForAuction(_from, _value, _artworkId) returns (bool) {
-        return super.transferFrom(_from, _to, _value);
+    function payForArtworkFrom(address _from, address _to, uint256 _price, uint256 _commission, uint256 _artworkId) public isForAuction(_from, _price.add(_commission), _artworkId) returns (bool) {
+        require(super.transferFrom(_from, _to, _price), "Must transfer price to seller");
+        require(super.transferFrom(_from, owner, _commission), "Must transfer commission to agent");
+        return true;
     }
 
     /**
@@ -280,13 +283,14 @@ contract ACG20 is StandardERC20 {
     *      Before calling this method, seller must approve this ACG20 contract to
     *      transfer his ACG721 token with specific ID beforehead.
     * @param _seller address The address of ACG721 token owner
-    * @param _value uint256 the amount of ACG20 tokens to be transferred
+    * @param _price uint256 amount of ACG20 tokens transferred to ACG721 token owner
+    * @param _commission uint256 amount of ACG20 tokens transferred to contract owner
     * @param _artworkId The ID of ACG721 which the transfer is for
 	*/
-    function approveAndCall(address _seller, uint256 _value, uint256 _artworkId) public returns (bool) {
+    function approveAndCall(address _seller, uint256 _price, uint256 _commission, uint256 _artworkId) public returns (bool) {
         require(acg721Contract != address(0), "Must register a valid contract before calling approveAndCall() method");
-        approve(acg721Contract, _value);
+        approve(acg721Contract, _price.add(_commission));
 
-        require(ACG721Interface(acg721Contract).receiveApproval(msg.sender, _seller, _value, _artworkId), "approveAndCall() must ensure calling receiveApproval() succeed");
+        require(ACG721Interface(acg721Contract).receiveApproval(msg.sender, _seller, _price, _commission, _artworkId), "approveAndCall() must ensure calling receiveApproval() succeed");
     }
 }

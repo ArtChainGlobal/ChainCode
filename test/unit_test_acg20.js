@@ -124,10 +124,11 @@ contract('API Support: buy_artwork()', function(accounts) {
     let approvedAmount = await acg20Inst.allowance.call(owner, spender).then((value) => {
       return value.toNumber();
     });
-    let transferAmount = approvedAmount/2;
+    const transferAmount = approvedAmount/2;
+    const commission = 0;
 
     // Submit transfer operation
-    await acg20Inst.payForArtworkFrom(owner, receiver, transferAmount, artworkId, {from:spender});
+    await acg20Inst.payForArtworkFrom(owner, receiver, transferAmount, commission, artworkId, {from:spender});
 
     approvedAmount -= transferAmount;
     userBalance[owner] -= transferAmount;
