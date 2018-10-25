@@ -12,8 +12,20 @@ contract('approveAndCall()', function(accounts) {
     let admin;
     let artist;
     let buyer;
-    let artwork1;
-    let artwork2;
+    let artwork1 = {
+        "type":"paint",
+        "artist":"Qin Wang",
+        "loyalty":"0.1",
+        "status":"normal",
+        "prize":"10000"
+      };
+    let artwork2 = {
+        "type":"sculpture",
+        "artist":"Quong Bui Van",
+        "loyalty":"0.3",
+        "status":"normal",
+        "prize":"50000"
+      };
 
     before(async() => {
         admin = accounts[0];
@@ -31,20 +43,6 @@ contract('approveAndCall()', function(accounts) {
         });
 
         // initialize user's ACG721 balance
-        artwork1 = {
-            "type":"paint",
-            "artist":"Qin Wang",
-            "loyalty":"0.1",
-            "status":"normal",
-            "prize":"10000"
-          };
-          artwork2 = {
-            "type":"sculpture",
-            "artist":"Quong Bui Van",
-            "loyalty":"0.3",
-            "status":"normal",
-            "prize":"50000"
-          };
           await acg721Inst.mintWithMetadata(artist, 1, JSON.stringify(artwork1));
           await acg721Inst.mintWithMetadata(artist, 2, JSON.stringify(artwork2));
     });
@@ -72,20 +70,28 @@ contract('approveAndCall()', function(accounts) {
         assert.equal(sellerBalance.toNumber(), userBalance[artist], "Seller's balance should keep unchanged");
     });
     it("Call approveAndCall() to establish the purchase", async() => {
-        let artworkId = 1;
-        let artworkPrice = Number(artwork1.prize);
+        const artworkId = 1;
         
         await acg721Inst.approve(acg20Inst.address, artworkId, {from: artist});
-        await acg20Inst.approveAndCall(artist, artworkPrice, artworkId, {from: buyer});
+
+        const artworkCommission = Math.floor(Number(artwork1.prize) * Number(artwork1.loyalty));
+        const artworkPrice = Number(artwork1.prize) - artworkCommission;
+
+        await acg20Inst.approveAndCall(artist, artworkPrice, artworkCommission, artworkId, {from: buyer});
+
         userBalance[artist] += artworkPrice;
-        userBalance[buyer] -= artworkPrice;
+        userBalance[admin] += artworkCommission;
+        userBalance[buyer] -= (artworkPrice+artworkCommission);
 
         let artistBalance = await acg20Inst.balanceOf.call(artist);
         let buyerBalance = await acg20Inst.balanceOf.call(buyer);
+        let agentBalance = await acg20Inst.balanceOf.call(admin);
+
         let ownerOfArtwork = await acg721Inst.ownerOf.call(artworkId);
 
-        assert.equal(artistBalance.toNumber(), userBalance[artist], "Artist should receive the payment");
         assert.equal(buyerBalance.toNumber(), userBalance[buyer], "Buyer should pay for the artwork");
+        assert.equal(artistBalance.toNumber(), userBalance[artist], "Artist should receive the payment");
+        assert.equal(agentBalance.toNumber(), userBalance[admin], "Agent should receive the commission");
         assert.equal(ownerOfArtwork, buyer, "Artwork should be transferred to buyer");
     });
     it("Call approveAndCall() will fail if buyer's price exceeds his balance", async () => {
