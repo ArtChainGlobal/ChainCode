@@ -1,7 +1,8 @@
 
 const Web3 = require('web3');
 //import the token which was deployed from deployment
-//const AGC20TOKEN = require('./AGC20TOKEN');
+const AGC20Token = require('./ACG20Token');
+const AGC721Token = require()
 
 //import ip address and port from static json file, based on RPC ip address and port of nodes
 const NodeIPAddresses = require('../static/contract_information/node_IP_address.json');
@@ -21,7 +22,7 @@ const addNewAccount = async (passward) => {
     //the new account will be created on node 0 of the private chain
     const node0Accounts = await web3Array[0].eth.getAccounts();
     //console.log(node0Accounts); 
-    const DEFAULT_ACCOUNT = 0xffffffffffffffffffffffffffffffffffffffff;  //default account
+    const DEFAULT_ACCOUNT = 0x0;  //default account
     const DEFAULT_ETHER_FOR_NEW_ACCOUNT = await Web3.utils.toWei('1000', 'ether'); //1000 ethers
     const DEFAULT_UNLOCK_TIME = 60 * 60 * 24 * 365 * 10;    //10 years
    
@@ -58,6 +59,25 @@ const addNewAccount = async (passward) => {
     return newAccount;
 }
 
+/**
+ * interface number 3
+ * buy_artwork
+ * 
+ */
+// const buy_artwork = async (buyer_address, owner_address, artwork_id, artwork_price) => {
+//     //assume that both the buyer_address and owner_addrss is legitimate
+//     try {
+//         result = await AGC20Token.methods.payForArtwork(owner_address, artwork_price, artwork_id).send({
+//             from: buyer_address,
+//         })
+//         //console.log("pay successfully", result);
+//         return true;
+//     } catch(err) {
+//         console.log("pay for artwork error", err);
+//         return false;
+//     }
+    
+// }
 
 module.exports = {
     addNewAccount,

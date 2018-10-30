@@ -12,7 +12,7 @@
         "IPAddress": "http://127.0.0.1:8002"        
     },
     {
-        "nodeID": "node4",
-        "IPAddress": "http://127.0.0.1:8004"        
+        "nodeID": "node3",
+        "IPAddress": "http://127.0.0.1:8003"        
     }
 ]
