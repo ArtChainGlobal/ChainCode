@@ -11,7 +11,6 @@ function ACGChainAPI() {
     let web3;
     let administrator;
 
-    const new_account_password = "password";
     const new_account_topup_value = 1e2;
     const post_artwork_incentive = 1e3;
 
@@ -109,11 +108,11 @@ function ACGChainAPI() {
         // Deploy the contracts
         const trans_deploy_acg20 = contract20.instance.deploy().send({
             from: administrator,
-            gas: gas_acg20
+            gas: Math.floor(gas_acg20 * 1.5)
         });
         const trans_deploy_acg721 = contract721.instance.deploy().send({
             from: administrator,
-            gas: gas_acg721
+            gas: Math.floor(gas_acg721 * 1.5)
         });
         contract20.instance = await trans_deploy_acg20;
         contract721.instance = await trans_deploy_acg721;
@@ -182,9 +181,9 @@ function ACGChainAPI() {
         return users.slice(2, 2+user_number);
     }
 
-    async function add_new_user() {
+    async function add_new_user(password) {
         // Create a new account on the node
-        const user_address = await web3.eth.personal.newAccount(new_account_password);
+        const user_address = await web3.eth.personal.newAccount(password);
         // Top up some eth for new user
         await web3.eth.sendTransaction({
             from: administrator,
@@ -210,7 +209,7 @@ function ACGChainAPI() {
         });
         const trans_721_mint = contract721.instance.methods.mintWithMetadata(user_address, artwork_id, metadata).send({
             from: administrator,
-            gas: gasValue
+            gas: Math.floor(gasValue * 1.5)
         });
         // Store 20 Token as prize of posting artwork
         const trans_20_mint = contract20.instance.methods.mint(user_address, post_artwork_incentive).send({
@@ -234,7 +233,7 @@ function ACGChainAPI() {
         });
         await contract721.instance.methods.updateMetadata(artwork_id, metadata).send({
             from: administrator,
-            gas: gasValue
+            gas: Math.floor(gasValue * 1.5)
         });
     }
 
@@ -265,7 +264,7 @@ function ACGChainAPI() {
         // freeze buyer's ACG20 token
         const receipt = await contract20.instance.methods.freeze(buyer_address, artwork_prize, artwork_id).send({
             from: administrator,
-            gas: gasValue
+            gas: Math.floor(gasValue * 1.5)
         });
 
         return receipt.transactionHash;

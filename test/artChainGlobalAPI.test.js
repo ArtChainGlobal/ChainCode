@@ -107,7 +107,7 @@ describe('API basic test framework', async function () {
 
         // Store new user address to the contract
         for (let i=0; i<user_number; i++) {
-            trans_add_new_user[i] = acgApi.add_new_user();
+            trans_add_new_user[i] = acgApi.add_new_user("password");
         }
         // Expect the operation succeeded
         for (let i=0; i<user_number; i++) {
