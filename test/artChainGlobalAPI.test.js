@@ -1,32 +1,24 @@
 const assert = require('assert');
-const path = require('path');
 
-//const contract_compile_deploy = require('../scripts/contract_to_chain_web3_1.0.js');
 const AcgApi = require('../api/artChainGlobalAPI.js');
 
-const RPC_SERVER = "http://127.0.0.1:31000"
+const SIMPLE_TEST_ON_ENVIRONMENT = false;
 
 let web3;
 const acgApi = AcgApi();
 
-const COMPILE_CONTRACTS_FROM_SOURCE_FILE = false;
-const RETRIEVE_DEPLOYED_CONTRACTS_FROM_CHAIN = true;
-const SIMPLE_TEST_ON_ENVIRONMENT = false;
-const contract_address = [
-    '0x02307AB6765eb89A5727564E35C879d633f0432E',
-    '0x36Afaa7C3eBCac960EC522ba3D3Ff439d7900a0B'
-];
 
 describe('API basic test framework', async function () {
 
     let users = [];
     const user_number = 4;
-    const prefund_eth = 100;
     let acg20Inst;
     let acg721Inst;
     const transaction_to_be_checked = [];
     const artwork_id_list = [];
     let artist;
+    let artwork_id_sold;
+    let collector;
     
     before ("Setup test environment step by step", async function () {
         // Set timeout
@@ -34,43 +26,9 @@ describe('API basic test framework', async function () {
         console.log("Setup environment start ...");
 
         // ----------------------------------------------------------
-        // Connect to RPC server
+        // Setup environment
         // ----------------------------------------------------------
-        web3 = await acgApi.connect_to_chain(RPC_SERVER);
-
-        // ----------------------------------------------------------
-        // Get contracts interface by either:
-        // 1. compiling from source files, or:
-        // 2. read in the compiled JSON files
-        // ----------------------------------------------------------
-        if (COMPILE_CONTRACTS_FROM_SOURCE_FILE) {
-            const contract_folder = path.resolve(__dirname, '..', 'contracts');
-            acgApi.compile_contract_from_source(contract_folder);   
-        } else {
-            const contract_folder = path.resolve(__dirname, '..', 'build', 'contracts');
-            acgApi.read_in_compiled_contract_JSON(contract_folder);    
-        }
-
-        // ----------------------------------------------------------
-        // Get contracts instance by either:
-        // 1. retrieve deployed contracts from the chain, this will 
-        //    contains status record of previous transactions, or:
-        // 2. deploy new contracts to the chain
-        // ----------------------------------------------------------
-        if (RETRIEVE_DEPLOYED_CONTRACTS_FROM_CHAIN) {
-            // Fetch the deployed contracts
-            acgApi.retrieve_deployed_contracts(contract_address);
-        } else {
-            // Deploy new contracts for test
-            await acgApi.deploy_new_contracts();
-        }
-
-        // ----------------------------------------------------------
-        // Run a simple test to ensure the contracts instances available
-        // ----------------------------------------------------------
-        if (SIMPLE_TEST_ON_ENVIRONMENT) {
-            acgApi.simple_test_on_environment();
-        }
+        web3 = await acgApi.prepare();
 
         // ----------------------------------------------------------
         // Prepare a set of testing accounts by either:
@@ -96,6 +54,12 @@ describe('API basic test framework', async function () {
         */
 
         // ----------------------------------------------------------
+        // Run a simple test to ensure the contracts instances available
+        // ----------------------------------------------------------
+        if (SIMPLE_TEST_ON_ENVIRONMENT) {
+            acgApi.simple_test_on_environment();
+        }
+        // ----------------------------------------------------------
         // Environment ready to use
         // ----------------------------------------------------------
         console.log("Setup environment finish ...");
@@ -107,7 +71,7 @@ describe('API basic test framework', async function () {
 
         // Store new user address to the contract
         for (let i=0; i<user_number; i++) {
-            trans_add_new_user[i] = acgApi.add_new_user();
+            trans_add_new_user[i] = acgApi.add_new_user("password");
         }
         // Expect the operation succeeded
         for (let i=0; i<user_number; i++) {
@@ -141,7 +105,6 @@ describe('API basic test framework', async function () {
             "New user's balance of ACG721 token should be zero");
         }
     });
-
     it('Test API: post_new_artwork', async () => {
         const artwork_list = [];
         const artwork_number = 5;
@@ -208,10 +171,6 @@ describe('API basic test framework', async function () {
             //assert.equal(artwork_info_after.status, "private", "Artwork status should be changed");
         });
 
-        it('Test API: buy_artwork', async() => {
-
-        });
-    
         it('Test API: buy_token', async () => {
 
             // Obtain chain status
@@ -228,7 +187,7 @@ describe('API basic test framework', async function () {
             // buyer buy amount of ACG20 tokens
             const trans_buy_token = [];
             for (let i=0; i<user_number; i++) {
-                const token_amount = Math.floor(Math.random()*1e8);
+                const token_amount = 1e8 + Math.floor(Math.random()*1e8);
                 trans_buy_token[i] = acgApi.buy_token(users[i], token_amount);
                 acg20_balance[i] += token_amount;
             }
@@ -250,6 +209,55 @@ describe('API basic test framework', async function () {
             }
         });
 
+        it('Test API: buy_artwork', async() => {
+            artwork_id_sold = artwork_id_list[3];
+            collector = users[3];
+
+            // Read out artwork information
+            const trans_read_metadata =  acg721Inst.methods.referencedMetadata(artwork_id_sold).call();
+            // Read out buyer and seller's balance of ACG20
+            let trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
+            let trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
+
+            // Calculate sell price and commission
+            const metadata = await trans_read_metadata;
+            const artwork_info = JSON.parse(metadata);
+            const artwork_prize = Number(artwork_info.prize);
+            const sell_commission = Math.floor(artwork_prize * Number(artwork_info.loyalty));
+            const sell_price = artwork_prize - sell_commission;
+
+            // Unlock both seller and buyer for subsequent operations
+            const trans_unlock_buyer = web3.eth.personal.unlockAccount(collector, "password", 600);
+            const trans_unlock_seller = web3.eth.personal.unlockAccount(artist, "password", 600);
+            await trans_unlock_buyer;
+            await trans_unlock_seller;
+
+            // Wait for the return of user balance
+            const buyer_balance_before = await trans_get_buyer_balance;
+            const seller_balance_before = await trans_get_seller_balance;
+
+            // Buy artwork
+            await acgApi.buy_artwork(collector, artist, artwork_id_sold, artwork_prize);
+
+            // Read out buyer and seller's balance of ACG20
+            trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
+            trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
+            // Get owner of the sold artwork
+            trans_get_owner = acg721Inst.methods.ownerOf(artwork_id_sold).call();
+
+            // Wait for the result
+            const buyer_balance_after = await trans_get_buyer_balance;
+            const seller_balance_after = await trans_get_seller_balance;
+            const new_owner = await trans_get_owner;
+
+            // Check result
+            assert.equal(Number(buyer_balance_after), Number(buyer_balance_before)-artwork_prize, "Buyer's balance should decrease");
+            assert.equal(Number(seller_balance_after), Number(seller_balance_before)+sell_price, "Seller's balance should increase");
+            assert.equal(collector, new_owner, "New owner should be buyer");
+            // 
+
+        });
+    
         it('Test API: freeze_token', async function () {
             const buyer1 = users[2];
             // Top up buyer's ACG20 token
@@ -273,7 +281,9 @@ describe('API basic test framework', async function () {
         it('Test API: check_artwork', async function () {
             const trans_check_artwork = [];
             artwork_id_list.forEach((artwork_id) => {
-                trans_check_artwork.push(acgApi.check_artwork(artwork_id));
+                if (artwork_id !== artwork_id_sold) {
+                    trans_check_artwork.push(acgApi.check_artwork(artwork_id));
+                }
             });
             // Wait for the result
             trans_check_artwork.forEach(async (trans) => {
@@ -313,5 +323,5 @@ describe('API basic test framework', async function () {
                 transaction = await trans;
                 //console.log(transaction);
             });
-        });   
+        });      
 });

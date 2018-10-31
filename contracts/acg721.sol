@@ -1,10 +1,10 @@
 pragma solidity ^0.4.24;
 
-import "SafeMath.sol";
-// import "./acg20.sol";
+import "./SafeMath.sol";
 
 contract ACG20Interface {
-    function payForArtworkFrom(address _buyer, address _seller, uint _value, uint _tokenId) public returns (bool);
+    function payForArtworkFrom(address _from, address _to, uint256 _price, uint256 _commission, uint256 _artworkId) public returns (bool) 
+    {}
 }
 
 /**
@@ -17,6 +17,7 @@ contract ACG20Interface {
 contract StandardERC721 {
     // SafeMath methods will be avaiable for the type "uint256"
     using SafeMath for uint256;
+
     mapping(uint => address) internal tokenIdToOwner;
     mapping(address => uint[]) public listOfOwnerTokens;
     mapping(uint => uint) internal tokenIndexInOwnerArray;
@@ -28,8 +29,7 @@ contract StandardERC721 {
     event ApprovalForAll(address indexed _owner, address indexed _operator, bool _approved);
 
     modifier onlyExtantToken(uint _tokenId) {
-        // require(ownerOf(_tokenId) != address(0), "Token doesn't exist");
-        require(ownerOf(_tokenId) != 0x0, "Token doesn't exist");
+        require(ownerOf(_tokenId) != address(0), "Token doesn't exist");
         _;
     }
 
@@ -50,20 +50,19 @@ contract StandardERC721 {
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
     function transferFrom(address _from, address _to, uint256 _tokenId) public onlyExtantToken(_tokenId) {
-        require(approvedAddressToTransferTokenId[_tokenId] == _to, "Only approved address is able of transfering the token");
+        require(approvedAddressToTransferTokenId[_tokenId] == msg.sender, "Only approved address is able of transfering the token");
         require(ownerOf(_tokenId) == _from, "Sender must be the owner of the token");
         require(_to != address(0), "Receiver address should not be zero");
 
         _clearApprovalAndTransfer(_from, _to, _tokenId);
 
-        emit Approval(_from, _to, _tokenId);
+        emit Approval(_from, 0, _tokenId);
         emit Transfer(_from, _to, _tokenId);
     }
 
     // @dev Grants approval for address _to to take possession of the NFT with ID _tokenId.
-    function approve(address _from, address _to, uint _tokenId) public onlyExtantToken(_tokenId)
+    function approve(address _to, uint _tokenId) public onlyExtantToken(_tokenId)
     {
-        require(msg.sender == _from);
         require(msg.sender == ownerOf(_tokenId), "Sender must be the owner of the token");
         require(msg.sender != _to, "Sender and receiver should be different");
 
@@ -71,10 +70,6 @@ contract StandardERC721 {
             approvedAddressToTransferTokenId[_tokenId] = _to;
             emit Approval(msg.sender, _to, _tokenId);
         }
-    }
-    // new function to get approvedAddress based on token id
-    function getApprovedAddressOfArtToken(uint _tokenId) public view returns (address) {
-        return approvedAddressToTransferTokenId[_tokenId];
     }
 
     function _clearApprovalAndTransfer(address _from, address _to, uint _tokenId) internal
@@ -121,8 +116,6 @@ contract StandardERC721 {
  *
  */
 contract ACG721 is StandardERC721 {
-    // ACG20Interface public ACG20Token;
-    ACG20Interface public ACG20Token;
     uint256 public totalSupply;
 
     address public owner;
@@ -143,8 +136,6 @@ contract ACG721 is StandardERC721 {
 	// @dev constructor sets the original `owner` of the contract to the sender account.
     constructor() public {
         owner = msg.sender;
-        acg20Contract = 0xAf5cBd64eA5AD505a79d0768C841d27cE67394B6;
-        ACG20Token = ACG20Interface(acg20Contract);
     }
 
     // new function getOwner for testing
@@ -160,9 +151,8 @@ contract ACG721 is StandardERC721 {
     // @dev Anybody can create a token and give it to an owner
     function mint(address _owner, uint256 _tokenId) public onlyNonexistentToken (_tokenId)
     {
-        tokenIdToOwner[_tokenId] = _owner;
-        listOfOwnerTokens[_owner].push(_tokenId);
-        tokenIndexInOwnerArray[_tokenId] = listOfOwnerTokens[_owner].length - 1;
+        _setTokenOwner(_tokenId, _owner);
+        _addTokenToOwnersList(_owner, _tokenId);
 
         totalSupply = totalSupply.add(1);
         emit Minted(_owner, _tokenId);
@@ -212,50 +202,22 @@ contract ACG721 is StandardERC721 {
         acg20Contract = _contract;
     }
 
-    /**
-    * new function to get the registered address of the token acg20 registered here
-    */
-    function getAcg20ContractRegisteredAddress() public view returns (address) {
-        return acg20Contract;
-    }
-
-    // bring this function here to require the sender = acg721's owner
-    function transferFrom(address _from, address _to, uint256 _tokenId) public onlyExtantToken(_tokenId) {
-        require(msg.sender == owner);
-        super.transferFrom(_from, _to, _tokenId);
-    }
-
-    /**
+    /*
 	* @dev Called as part of method approveAndCall() by an ACG20 contract.
     *      First transfer buyer's ACG20 token to seller, and then change the owner
     *      of the specific ACG721 token from seller to buyer.
     * @param _buyer address The address of ACG20 token owner
     * @param _seller address The address of ACG721 token owner
-    * @param _value uint256 the amount of ACG20 tokens to be transferred
+    * @param _price uint256 Amount of ACG20 tokens to be transferred to seller
+    * @param _commission uint256 Amount of ACG20 tokens transferred to contract owner
     * @param _tokenId The ID of ACG721 which the transfer is for
 	*/
-    // function receiveApproval(address _buyer, address _seller, uint256 _value, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
-    //     require(msg.sender == acg20Contract, "Contract address must match the registered ACG20 contract");
+    function receiveApproval(address _buyer, address _seller, uint256 _price, uint256 _commission, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
+        require(msg.sender == acg20Contract, "Contract address must match the registered ACG20 contract");
 
-        // require(ACG20Interface(acg20Contract).payForArtworkFrom(_buyer, _seller, _value, _tokenId), "ACG20 methold calling must return true");
-
-    //     transferFrom(_seller, _buyer, _tokenId);
-    //     return true;
-    // }
-    // function receiveApproval(address _buyer, address _seller, uint256 _value, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
-    function receiveApproval(address _buyer, address _seller, uint256 _value, uint256 _tokenId) public returns (bool) {
-        require(msg.sender == owner, "sender must be the founder of this contract");
-
-        // Step 1: require the onwer already approve for this token to be transfer to the buyer
-        require(approvedAddressToTransferTokenId[_tokenId] == _buyer);
-        // step 2: perform the transaction payForArtworkFrom to trans fer the token
-        // ACG20Interface(acg20Contract).payForArtworkFrom(_buyer, _seller, _value, _tokenId);
-        ACG20Token.payForArtworkFrom(_buyer, _seller, _value, _tokenId);
-        // step 3: transfer the artwork to the _buyer
+        require(ACG20Interface(acg20Contract).payForArtworkFrom(_buyer, _seller, _price, _commission, _tokenId), "ACG20 methold calling must return true");
 
         transferFrom(_seller, _buyer, _tokenId);
         return true;
     }
-
-    
 }

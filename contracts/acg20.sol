@@ -1,10 +1,10 @@
 pragma solidity ^0.4.24;
 
-import "SafeMath.sol";
-// import "acg721.sol";
+import "./SafeMath.sol";
 
 contract ACG721Interface {
-    function receiveApproval(address _from, address _to, uint256 _value, uint256 _tokenId) public returns (bool);
+    function receiveApproval(address _from, address _to, uint256 _price, uint256 _commission, uint256 _tokenId) public returns (bool)
+    {}
 }
 
 /**
@@ -71,11 +71,11 @@ contract StandardERC20 {
     function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
         require(_to != address(0), "Receiver must have a non-sero address");
         require(_value <= balances[_from], "Sender's balance must be larger than transferred amount");
-        // require(_value <= allowed[_from][msg.sender], "Sender must have approved larger amount to the delegator");
-        
+        require(_value <= allowed[_from][msg.sender], "Sender must have approved larger amount to the delegator");
+
         balances[_from] = balances[_from].sub(_value);
         balances[_to] = balances[_to].add(_value);
-        // allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
+        allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
         emit Transfer(_from, _to, _value);
         return true;
     }
@@ -90,10 +90,9 @@ contract StandardERC20 {
 	   * @param _spender The address which will spend the funds.
 	   * @param _value The amount of tokens to be spent.
 	   */
-    function approve(address _giver, address _spender, uint256 _value) public returns (bool) {
-        require(msg.sender == _giver);
-        allowed[_giver][_spender] = _value;
-        emit Approval(_giver, _spender, _value);
+    function approve(address _spender, uint256 _value) public returns (bool) {
+        allowed[msg.sender][_spender] = _value;
+        emit Approval(msg.sender, _spender, _value);
         return true;
     }
 
@@ -114,25 +113,17 @@ contract StandardERC20 {
  * 
  */
 contract ACG20 is StandardERC20 {
-    ACG721Interface public acg721_interface;
     string public name = "ArtChain Global Token 20";
     string public symbol = "ACG20";
     uint8 public decimals = 2;
 
     address public owner;
     address public acg721Contract;
-    // struct Account
-    // struct Accounts {
-    //     address account_address;
-    //     string name;
-    // }
-    // // map Accounts to address
-    // mapping(address => Accounts) public user_accounts;
+
     // artwork ID => highest bidder address
     mapping(uint256 => address) public highestBidder;
     // artwork ID => highest bid
     mapping(uint256 => uint256) public highestBid;
-    
   
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event Mint(address indexed to, uint256 amount);
@@ -283,9 +274,7 @@ contract ACG20 is StandardERC20 {
 	* @param _value The amount to be transferred.
     * @param _artworkId The ID of artwork which the transfer is for
 	*/
-    function payForArtwork(address _to, uint256 _value, uint256 _artworkId) public returns (bool) {
-        // require the sender to approve for the _to to spend _value token of from him
-        require(allowance(msg.sender, _to) >= _value);
+    function payForArtwork(address _to, uint256 _value, uint256 _artworkId) public isForAuction(msg.sender, _value, _artworkId) returns (bool) {
         return super.transfer(_to, _value);
     }
 
@@ -293,15 +282,15 @@ contract ACG20 is StandardERC20 {
 	* @dev Transfer tokens from one address to another for artwork purchase(support auction)
 	* @param _from address The address which you want to send tokens from
 	* @param _to address The address which you want to transfer to
-	* @param _value uint256 the amount of tokens to be transferred
+	* @param _price uint256 the amount of tokens to be transferred to seller
+	* @param _commission uint256 the amount of tokens to be transferred to contract owner
     * @param _artworkId The ID of artwork which the transfer is for
     *   All issues from this function left
 	*/
-    function payForArtworkFrom(address _from, address _to, uint256 _value, uint256 _artworkId) public returns (bool) {
-        require(allowance(_from, _to) >= _value);
-        // require sender = _to as _from already approve hor _to to spend this _value;
-        // require(msg.sender == owner);    //somehow, I cannot implement this requirement, quire risky
-        return super.transferFrom(_from, _to, _value);
+    function payForArtworkFrom(address _from, address _to, uint256 _price, uint256 _commission, uint256 _artworkId) public isForAuction(_from, _price.add(_commission), _artworkId) returns (bool) {
+        require(super.transferFrom(_from, _to, _price), "Must transfer price to seller");
+        require(super.transferFrom(_from, owner, _commission), "Must transfer commission to agent");
+        return true;
     }
 
     /**
@@ -313,11 +302,6 @@ contract ACG20 is StandardERC20 {
         emit RegisterACG721Contract(_contract);
         acg721Contract = _contract;
     }
-    //new function to get acg721Contract address
-    function getAcg721RegisteredAddress() public view returns (address) {
-        return acg721Contract;
-    }
-
 
     /**
 	* @dev Establish a safe transaction of buying a ACG721 token using ACG20 token.
@@ -327,12 +311,14 @@ contract ACG20 is StandardERC20 {
     *      Before calling this method, seller must approve this ACG20 contract to
     *      transfer his ACG721 token with specific ID beforehead.
     * @param _seller address The address of ACG721 token owner
-    * @param _value uint256 the amount of ACG20 tokens to be transferred
+    * @param _price uint256 amount of ACG20 tokens transferred to ACG721 token owner
+    * @param _commission uint256 amount of ACG20 tokens transferred to contract owner
     * @param _artworkId The ID of ACG721 which the transfer is for
 	*/
-    // function approveAndCall(address _seller, uint256 _value, uint256 _artworkId) public returns (bool) {
-    //     require(acg721Contract != address(0), "Must register a valid contract before calling approveAndCall() method");
-    //     approve(acg721Contract, _value);
-    //     require(agc721_interface(acg721Contract).receiveApproval(msg.sender, _seller, _value, _artworkId), "approveAndCall() must ensure calling receiveApproval() succeed");
-    // }
+    function approveAndCall(address _seller, uint256 _price, uint256 _commission, uint256 _artworkId) public returns (bool) {
+        require(acg721Contract != address(0), "Must register a valid contract before calling approveAndCall() method");
+        approve(acg721Contract, _price.add(_commission));
+
+        require(ACG721Interface(acg721Contract).receiveApproval(msg.sender, _seller, _price, _commission, _artworkId), "approveAndCall() must ensure calling receiveApproval() succeed");
+    }
 }

@@ -1,36 +1,85 @@
-//const HDWalletProvider = require('truffle-hdwallet-provider');
 const Web3 = require('web3');
-const { interface, bytecode } = require('../compiles/compile');
+const fs = require('fs');
+const ACG20 = require('../static/ACG20.json');
+const ACG721 = require('../static/ACG721.json');
 
-// const provider = new HDWalletProvider(
-//     // two arguements, account Mnemonic, and url - infura link
-//     // the following is the text used to create public and private key
-//     'another tray rapid bird wise firm renew private always write shrug inject',
-//     'https://rinkeby.infura.io/v3/66724f5b8e9c465d8625383690f03cac'
-// );
-var provider = new Web3.providers.HttpProvider('http://127.0.0.1:8000')
-const web3 = new Web3(provider);
-// const web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:8000"));
+const contract20 = {instance: ""};
+const contract721 = {instance: ""};
+let web3;
+let administrator;
 
-//async await action
-const deploy = async () => {
-    //console.log("bytecode", bytecode);
-    //console.log("interface", interface)
-    const accounts = await web3.eth.getAccounts();
-    // get a list of account, then deploy the account
-    console.log('attempt to deploy from accounts', accounts[0]);
-
-    const result = await new web3.eth.Contract(JSON.parse(interface))
-        .deploy({ 
-            data: '0x' + bytecode,      //keep in mind to put '0x' as prefix of the bytecode
-            // arguments: ['initial-message-1'],
-         })
-         .send({
-            from: accounts[0],
-            gas: '2000000',
-         });
-    console.log('contract deployed to ', result.options.address);
-    console.log(interface);
+async function connect_to_chain(rpc_provider) {
+    if (typeof web3 !== 'undefined') {
+        console.log("API: Connect to an existing web3 provider ...");
+        web3 = new Web3(web3.currentProvider);
+    } else {
+        // set the provider you want from Web3.providers
+        console.log("API: Set a new web3 provider ...");
+        //web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
+        web3 = new Web3(new Web3.providers.WebsocketProvider(rpc_provider));
+    }
+    // Exception is thrown if the connection failed
+    await web3.eth.net.isListening();
+    accounts = await web3.eth.getAccounts();
+    administrator = accounts[0];
+    console.log("Connected to RPC server, set administrator to ", administrator, "...");
+    return web3;
 }
 
-deploy();
+async function deploy_new_contracts(rpc_provider) {
+    // Connect to private chain
+    await connect_to_chain(rpc_provider);
+
+    // Generate new contract objects
+    instance20 = new web3.eth.Contract(JSON.parse(ACG20.abiString), null, {
+        data: ACG20.bytecode
+    });
+    instance721 = new web3.eth.Contract(JSON.parse(ACG721.abiString), null, {
+        data: ACG721.bytecode
+    });
+
+    // Estimate gas required to deploy the contracts
+    const trans_estimate_gas_20 = instance20.deploy().estimateGas();
+    const trans_estimate_gas_721 = instance721.deploy().estimateGas();
+    const gas_acg20 = await trans_estimate_gas_20;
+    const gas_acg721 = await trans_estimate_gas_721;
+
+    // Deploy the contracts
+    const trans_deploy_acg20 = instance20.deploy().send({
+        from: administrator,
+        gas: Math.floor(gas_acg20 * 1.5)
+    });
+    const trans_deploy_acg721 = instance721.deploy().send({
+        from: administrator,
+        gas: Math.floor(gas_acg721 * 1.5)
+    });
+    newInstance20 = await trans_deploy_acg20;
+    newInstance721 = await trans_deploy_acg721;
+
+    // Register each other for subsequent transactions
+    const trans_register_20 = newInstance20.methods.registerACG721Contract(newInstance721.options.address).send({
+        from: administrator
+    });
+    const trans_register_721 = newInstance721.methods.registerACG20Contract(newInstance20.options.address).send({
+        from: administrator
+    });
+    await trans_register_20;
+    await trans_register_721;
+
+    console.log("Contracts deployed successfully ...\nACG20 is deployed at: ",
+    newInstance20.options.address,
+    "\nACG721 is deployed at: ", newInstance721.options.address);
+
+    const deployedConfig = {
+        server: rpc_provider,
+        administrator: administrator,
+        acg20_address: newInstance20.options.address,
+        acg721_address: newInstance721.options.address
+    };
+
+    const confString = JSON.stringify(deployedConfig);
+    fs.writeFileSync("./static/deployConf.json", confString);
+    console.log("Write deployment result to file ...");
+}
+
+module.exports = deploy_new_contracts;
