@@ -98,6 +98,20 @@ function ACGChainAPI() {
         return web3;
     }
 
+    async function safeguard_account_balance(account_address) {
+        const account_balance_wei = await web3.eth.getBalance(account_address);
+        const account_balance_eth = web3.utils.fromWei(account_balance_wei, "ether");
+
+        // Top up account if its balance is lower than specific value
+        if (Number(account_balance_eth) < new_account_topup_value) {
+            await web3.eth.sendTransaction({
+                from: administrator,
+                to: account_address,
+                value: web3.utils.toWei(new_account_topup_value.toString(), "ether")
+            });
+        };
+    }
+
     async function simple_test_on_environment() {
         console.log("******** Simple test ********");
         const name = await contract20.methods.name().call();
@@ -114,11 +128,7 @@ function ACGChainAPI() {
         // Create a new account on the node
         const user_address = await web3.eth.personal.newAccount(password);
         // Top up some eth for new user
-        await web3.eth.sendTransaction({
-            from: administrator,
-            to: user_address,
-            value: web3.utils.toWei(new_account_topup_value.toString(), "ether")
-        });
+        await safeguard_account_balance(user_address);
         return user_address;
     }
 
@@ -325,6 +335,7 @@ function ACGChainAPI() {
         // Auxiliary functions:
         // ----------------------------
         prepare: prepare,
+        safeguard_account_balance: safeguard_account_balance,
         get_contracts_instrance: get_contracts_instrance,
         simple_test_on_environment: simple_test_on_environment,
         // ----------------------------
