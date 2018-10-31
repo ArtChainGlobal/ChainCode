@@ -4,8 +4,15 @@ function ACGChainAPI() {
 
     let web3;
     let administrator;
+
     let contract20;
     let contract721;
+
+    let address_20;
+    let address_721;
+
+    let interface_20;
+    let interface_721;
 
     const new_account_topup_value = 1e2;
     const post_artwork_incentive = 1e3;
@@ -27,8 +34,18 @@ function ACGChainAPI() {
         const ACG20 = require('../static/ACG20.json');
         const ACG721 = require('../static/ACG721.json');
         const deployConf = require('../static/deployConf.json');
-        instance20 = new web3.eth.Contract(JSON.parse(ACG20.abiString), deployConf.acg20_address);
-        instance721 = new web3.eth.Contract(JSON.parse(ACG721.abiString), deployConf.acg721_address);
+
+        address_20 = deployConf.acg20_address;
+        address_721 = deployConf.acg721_address;
+        interface_20 = JSON.parse(ACG20.abiString);
+        interface_721 = JSON.parse(ACG721.abiString)
+
+        instance20 = new web3.eth.Contract(interface_20, address_20);
+        instance721 = new web3.eth.Contract(interface_721, address_721);
+
+        console.log("Retrieve contract ACG20 from ", address_20);
+        console.log("Retrieve contract ACG721 from ", address_721);
+
         return [instance20, instance721];
     }
 
@@ -149,7 +166,39 @@ function ACGChainAPI() {
         });
     }
 
-    const buy_artwork = async (buyer_address, owner_address, artworkid, artwork_price) => {
+    const buy_artwork = async (buyer_address, owner_address, artwork_id, artwork_price) => {
+
+        // Retrieve artwork infomation to calculate commission
+        const trans_get_artwork_info = contract721.methods.referencedMetadata(artwork_id).call();
+
+        // Ask seller to approve contract ACG20 to transfer the specified artwork
+        const trans_approve_artwork = contract721.methods.approve(
+            address_20, artwork_id).send({
+            from: owner_address
+        });
+
+        // Calculate commission
+        const metadata = await trans_get_artwork_info;
+        artwork_info = JSON.parse(metadata);
+        const commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
+        const price = artwork_price - commission;
+
+        // Wait for the return of approve
+        await trans_approve_artwork;
+
+        // Submit the purchase transaction
+        const gasValue = await contract20.methods.approveAndCall(
+            owner_address, price, commission, artwork_id).estimateGas({
+            from: buyer_address
+        });
+        const receipt = await contract20.methods.approveAndCall(
+            owner_address, price, commission, artwork_id).send({
+                from: buyer_address,
+                gas: Math.floor(gasValue*1.5)
+            });
+
+        return receipt.transactionHash;
+/*
         // initiate transaction id
         let transaction_id = 0x0;     //expecting an transaction hash    
         // check the artworkid is existing in the system or not
@@ -199,6 +248,7 @@ function ACGChainAPI() {
             console.log("transaction process failed: ", err);
         }        
         return transaction_id;
+        */
     }
 
     async function buy_token(buyer_address, value) {
