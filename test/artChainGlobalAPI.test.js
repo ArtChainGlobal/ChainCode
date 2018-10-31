@@ -1,21 +1,13 @@
 const assert = require('assert');
 const path = require('path');
 
-//const contract_compile_deploy = require('../scripts/contract_to_chain_web3_1.0.js');
 const AcgApi = require('../api/artChainGlobalAPI.js');
 
-const RPC_SERVER = "http://127.0.0.1:31000"
+const SIMPLE_TEST_ON_ENVIRONMENT = true;
 
 let web3;
 const acgApi = AcgApi();
 
-const COMPILE_CONTRACTS_FROM_SOURCE_FILE = false;
-const RETRIEVE_DEPLOYED_CONTRACTS_FROM_CHAIN = true;
-const SIMPLE_TEST_ON_ENVIRONMENT = false;
-const contract_address = [
-    '0x02307AB6765eb89A5727564E35C879d633f0432E',
-    '0x36Afaa7C3eBCac960EC522ba3D3Ff439d7900a0B'
-];
 
 describe('API basic test framework', async function () {
 
@@ -34,43 +26,9 @@ describe('API basic test framework', async function () {
         console.log("Setup environment start ...");
 
         // ----------------------------------------------------------
-        // Connect to RPC server
+        // Setup environment
         // ----------------------------------------------------------
-        web3 = await acgApi.connect_to_chain(RPC_SERVER);
-
-        // ----------------------------------------------------------
-        // Get contracts interface by either:
-        // 1. compiling from source files, or:
-        // 2. read in the compiled JSON files
-        // ----------------------------------------------------------
-        if (COMPILE_CONTRACTS_FROM_SOURCE_FILE) {
-            const contract_folder = path.resolve(__dirname, '..', 'contracts');
-            acgApi.compile_contract_from_source(contract_folder);   
-        } else {
-            const contract_folder = path.resolve(__dirname, '..', 'build', 'contracts');
-            acgApi.read_in_compiled_contract_JSON(contract_folder);    
-        }
-
-        // ----------------------------------------------------------
-        // Get contracts instance by either:
-        // 1. retrieve deployed contracts from the chain, this will 
-        //    contains status record of previous transactions, or:
-        // 2. deploy new contracts to the chain
-        // ----------------------------------------------------------
-        if (RETRIEVE_DEPLOYED_CONTRACTS_FROM_CHAIN) {
-            // Fetch the deployed contracts
-            acgApi.retrieve_deployed_contracts(contract_address);
-        } else {
-            // Deploy new contracts for test
-            await acgApi.deploy_new_contracts();
-        }
-
-        // ----------------------------------------------------------
-        // Run a simple test to ensure the contracts instances available
-        // ----------------------------------------------------------
-        if (SIMPLE_TEST_ON_ENVIRONMENT) {
-            acgApi.simple_test_on_environment();
-        }
+        web3 = await acgApi.prepare();
 
         // ----------------------------------------------------------
         // Prepare a set of testing accounts by either:
@@ -95,6 +53,12 @@ describe('API basic test framework', async function () {
         }
         */
 
+        // ----------------------------------------------------------
+        // Run a simple test to ensure the contracts instances available
+        // ----------------------------------------------------------
+        if (SIMPLE_TEST_ON_ENVIRONMENT) {
+            acgApi.simple_test_on_environment();
+        }
         // ----------------------------------------------------------
         // Environment ready to use
         // ----------------------------------------------------------
@@ -141,7 +105,6 @@ describe('API basic test framework', async function () {
             "New user's balance of ACG721 token should be zero");
         }
     });
-
     it('Test API: post_new_artwork', async () => {
         const artwork_list = [];
         const artwork_number = 5;
@@ -313,5 +276,5 @@ describe('API basic test framework', async function () {
                 transaction = await trans;
                 //console.log(transaction);
             });
-        });   
+        });      
 });
