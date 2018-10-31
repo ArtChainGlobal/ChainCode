@@ -178,87 +178,59 @@ function ACGChainAPI() {
 
     const buy_artwork = async (buyer_address, owner_address, artwork_id, artwork_price) => {
 
+        let transaction_id = 0;
+        let metadata;
+
         // Retrieve artwork infomation to calculate commission
         const trans_get_artwork_info = contract721.methods.referencedMetadata(artwork_id).call();
+        const trans_get_owner = contract721.methods.ownerOf(artwork_id).call();
+
+        try {
+            metadata = await trans_get_artwork_info;
+            const owner = await trans_get_owner;
+            if (owner !== owner_address) {
+                console.log("Owner mismatch contract record");
+                return transaction_id;
+            }
+        } catch (err) {
+            console.log("Failed to get artwork information");
+            return transaction_id;
+        }
+
+        // Calculate commission
+        artwork_info = JSON.parse(metadata);
+        const commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
+        const price = artwork_price - commission;
 
         // Ask seller to approve contract ACG20 to transfer the specified artwork
         const trans_approve_artwork = contract721.methods.approve(
             address_20, artwork_id).send({
             from: owner_address
         });
-
-        // Calculate commission
-        const metadata = await trans_get_artwork_info;
-        artwork_info = JSON.parse(metadata);
-        const commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
-        const price = artwork_price - commission;
-
-        // Wait for the return of approve
-        await trans_approve_artwork;
+        try {
+            await trans_approve_artwork;
+        } catch (err) {
+            console.log("Failed on approve() from artwork seller");
+            return transaction_id;
+        }
 
         // Submit the purchase transaction
-        const gasValue = await contract20.methods.approveAndCall(
-            owner_address, price, commission, artwork_id).estimateGas({
-            from: buyer_address
-        });
-        const receipt = await contract20.methods.approveAndCall(
-            owner_address, price, commission, artwork_id).send({
-                from: buyer_address,
-                gas: Math.floor(gasValue*1.5)
-            });
-
-        return receipt.transactionHash;
-/*
-        // initiate transaction id
-        let transaction_id = 0x0;     //expecting an transaction hash    
-        // check the artworkid is existing in the system or not
-        const existingOnwer = await ACG721Token.methods.ownerOf(artworkid).call();
-        const tokenCurrentBalanceOfBuyer = await ACG20Token.methods.balanceOf(buyer_address).call();
-        if ((existingOnwer === owner_address) && (tokenCurrentBalanceOfBuyer >= artwork_price)) {  
-            //only continue if the owner is real and correct, the buyer have enough token
-    
-        }
-        
         try {
-            // buyer approve for seller to spend his token
-            const buyerApproval = await ACG20Token.methods.approve(buyer_address, owner_address, artwork_price).send({
-                from: buyer_address,
+            const gasValue = await contract20.methods.approveAndCall(
+                owner_address, price, commission, artwork_id).estimateGas({
+                from: buyer_address
             });
-            // const newAllowance = await ACG20Token.methods.allowance(buyer_address, owner_address).call();            
-            // console.log("allowance for owner is: ", newAllowance);
-            // Onwer need to approve for transfer his artwork
-            const ownerApproval = await ACG721Token.methods.approve(owner_address, buyer_address, artworkid).send({
-                from: owner_address,
-            });
-            // const approvedAddressOfToken = await ACG721Token.methods.getApprovedAddressOfArtToken(artworkid).call();
-            // console.log("token was approved to this address: ", approvedAddressOfToken);
-            // if these above approvals were ok, then continue the transfer process
-            if (buyerApproval) {
-                if (ownerApproval) {
-                    console.log("transferming is in progress ...");
-                        //estimate gas
-                    const gasEstimated = await ACG721Token.methods.receiveApproval(buyer_address, owner_address, artwork_price, artworkid).estimateGas({
-                        from: ADMIN_ACCOUNT,
-                    });
-                    // console.log(gasEstimated);
-                    try {
-                        const result = await ACG721Token.methods.receiveApproval(buyer_address, owner_address, artwork_price, artworkid).send({
-                            from: ADMIN_ACCOUNT,
-                            gas: gasEstimated
-                        });
-                        // console.log("pay successfully", result.transactionHash);
-                        transaction_id = result.transactionHash;
-                    } catch(err) {
-                        console.log("perform transfer token as well as artwork was failed: ", err);
-                    }                
-                }            
-            }
-            
-        } catch(err) {
-            console.log("transaction process failed: ", err);
-        }        
+            const receipt = await contract20.methods.approveAndCall(
+                owner_address, price, commission, artwork_id).send({
+                    from: buyer_address,
+                    gas: Math.floor(gasValue*1.5)
+                });
+            transaction_id = receipt.transactionHash;        
+        } catch (err) {
+            console.log("Failed on approveAndCall() from buyer");
+            return transaction_id;
+        }
         return transaction_id;
-        */
     }
 
     async function buy_token(buyer_address, value) {
