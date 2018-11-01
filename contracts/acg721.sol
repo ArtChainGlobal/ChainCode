@@ -112,8 +112,7 @@ contract StandardERC721 {
 
 /**
  * @title ACG 721 Token
- * @dev ERC721 to support ArtChainGlobal system
- *
+ * @dev inherited from standard ERC721 token, while provides specific functions to support artChainGlobal system
  */
 contract ACG721 is StandardERC721 {
     uint256 public totalSupply;
@@ -127,28 +126,54 @@ contract ACG721 is StandardERC721 {
     event Minted(address indexed _to, uint256 indexed _tokenId);
     event RegisterACG20Contract(address indexed _contract);
 
-	// @dev Throws if called by any account other than the owner.
+	/**
+    * @dev Throws if called by any account other than the owner.
+    */
     modifier onlyOwner() {
         require(msg.sender == owner, "Only contract owner is permitted for the operation");
         _;
     }
 
-	// @dev constructor sets the original `owner` of the contract to the sender account.
-    constructor() public {
-        owner = msg.sender;
-    }
-
-    // new function getOwner for testing
-    function getContractOwner() public view returns (address) {
-        return owner;
-    }
-
+   	/**
+	* @dev Throws if specific id is not existent.
+	*/
     modifier onlyNonexistentToken(uint _tokenId) {
         require(tokenIdToOwner[_tokenId] == address(0), "Token must be not extant");
         _;
     }
 
-    // @dev Anybody can create a token and give it to an owner
+	/**
+    * @dev Constructor, sets the original `owner` of the contract to the sender account.
+    */
+    constructor() public {
+        owner = msg.sender;
+    }
+
+    function _insertTokenMetadata(uint _tokenId, string _metadata) internal
+    {
+        referencedMetadata[_tokenId] = _metadata;
+    }
+
+    /**
+	* @dev Register ACG20 contract. Throws if:
+    * - `msg.sender` is not the contract owner, or
+    * - `_contract` is a zero address.
+    * 
+	* @param _contract address The address of ACG20 contract
+    */
+    function registerACG20Contract(address _contract) public onlyOwner {
+        require(_contract != address(0), "Must register a valid contract address");
+        emit RegisterACG20Contract(_contract);
+        acg20Contract = _contract;
+    }
+
+    /**
+    * @dev Create a NFT with given id. Anybody can create a token and give it to an owner. Throws if:
+    * - `_tokenId` is already an extant NFT
+    *
+    * @param _owner the address of the NFT owner
+    * @param _tokenId the id of the NFT
+    */
     function mint(address _owner, uint256 _tokenId) public onlyNonexistentToken (_tokenId)
     {
         _setTokenOwner(_tokenId, _owner);
@@ -158,8 +183,14 @@ contract ACG721 is StandardERC721 {
         emit Minted(_owner, _tokenId);
     }
 
-    // @dev Anybody can create a token and give it to an owner
-    // @notice only one of these functions(Mint, mintWithMetadata) should be used depending on the use case
+    /**
+    * @dev Create a NFT with given id and metadata. Anybody can create a token and give it to an owner. Note only one of these functions (Mint, MintWithMetadata) should be used depending on the use case. Throws if:
+    * - '_tokenId' is already an extant NFT
+    *
+    * @param _owner the address of the NFT owner
+    * @param _tokenId the id of the NFT
+    * @param _metadata the meta data of the NFT containing additional information of the NFT.
+    */
     function mintWithMetadata(address _owner, uint256 _tokenId, string _metadata) public onlyNonexistentToken (_tokenId)
     {
         _setTokenOwner(_tokenId, _owner);
@@ -171,12 +202,27 @@ contract ACG721 is StandardERC721 {
         emit Minted(_owner, _tokenId);
     }
 
-    // @dev Only contract owner can update token's metadata
+    /**
+    * @dev Update the meta data of an extant NFT. Throws if:
+    * - `msg.sender` is not the contract owner, or
+    * - `_tokenId` is not an extant NFT.
+    *
+    * @param _tokenId the id of the NFT
+    * @param _metadata the updated meta data of the NFT
+    */
     function updateMetadata(uint256 _tokenId, string _metadata) public onlyOwner() onlyExtantToken(_tokenId) {
         _insertTokenMetadata(_tokenId, _metadata);
     }
 
-	// @dev Assigns the ownership of the NFT with ID _tokenId to _to
+	/** 
+    * @dev Assigns the ownership of the NFT with ID `_tokenId` to `_to`. Throws if:
+    * - `msg.sender` is not the NFT owner, or
+    * - `_to` is the zero address, or
+    * - `_tokenId` is not an extant NFT.
+    *
+    * @param _to the address of the new owner
+    * @param _tokenId the id of the NFT to transfer
+    */
     function transfer(address _to, uint _tokenId) public onlyExtantToken (_tokenId)
     {
         require(ownerOf(_tokenId) == msg.sender, "Sender should be the owner of the token");
@@ -187,30 +233,21 @@ contract ACG721 is StandardERC721 {
         emit Transfer(msg.sender, _to, _tokenId);
     }
 
-    function _insertTokenMetadata(uint _tokenId, string _metadata) internal
-    {
-        referencedMetadata[_tokenId] = _metadata;
-    }
-
     /**
-	* @dev Register ACG20 contract
-	* @param _contract address The address of ACG20 contract
-    */
-    function registerACG20Contract(address _contract) public onlyOwner {
-        require(_contract != address(0), "Must register a valid contract address");
-        emit RegisterACG20Contract(_contract);
-        acg20Contract = _contract;
-    }
-
-    /*
-	* @dev Called as part of method approveAndCall() by an ACG20 contract.
-    *      First transfer buyer's ACG20 token to seller, and then change the owner
-    *      of the specific ACG721 token from seller to buyer.
-    * @param _buyer address The address of ACG20 token owner
-    * @param _seller address The address of ACG721 token owner
-    * @param _price uint256 Amount of ACG20 tokens to be transferred to seller
-    * @param _commission uint256 Amount of ACG20 tokens transferred to contract owner
-    * @param _tokenId The ID of ACG721 which the transfer is for
+	* @dev Called as part of method `approveAndCall()` of ACG20 contract, for a safe payment of the NFT. See `approveAndCall()` for more information. Throws if:
+    * - `_tokenId` is not extant, or
+    * - `msg.sender` is not the registered ACG20 contract address, or
+    * - call to method `payForArtworkFrom()` of ACG20 contract failed
+    *
+    * The method establishes:
+    * Step 1: transfer tokens of `_buyer` to `_seller` and the contract owner;
+    * Step 2: change the owner of the NFT with id `_tokenId` to `_buyer`.
+    *
+    * @param _buyer the address which the ACG20 tokens are transferred from
+    * @param _seller the address of NFT owner
+    * @param _price the amount of ACG20 tokens to be transferred to `_seller`
+    * @param _commission the amount of ACG20 tokens to be transferred to contract owner
+    * @param _tokenId the NFT id which the ACG20 tokens are transferred for
 	*/
     function receiveApproval(address _buyer, address _seller, uint256 _price, uint256 _commission, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
         require(msg.sender == acg20Contract, "Contract address must match the registered ACG20 contract");

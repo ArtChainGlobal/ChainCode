@@ -109,7 +109,7 @@ contract StandardERC20 {
 
 /**
  * @title ACG 20 Token
- * @dev ERC20 to support ArtChainGlobal system
+ * @dev inherited from standard ERC20 token, while provides specific functions to support artChainGlobal system
  * 
  */
 contract ACG20 is StandardERC20 {
@@ -132,13 +132,15 @@ contract ACG20 is StandardERC20 {
     event Unfreeze(address indexed from, uint256 amount, uint256 artwork);
     event RegisterACG721Contract(address indexed to);
 
-    // @dev The artchain_acg20 constructor sets the original `owner` of the contract to the sender account.
+    /**
+     * @dev Constructor. sets the original `owner` of the contract to the sender account.
+     */
     constructor() public {
         owner = msg.sender;
     }
 
    	/**
-	* @dev Throws if called by any account other than the owner.
+	* @dev Throws if called by any account other than the contract owner.
 	*/
     modifier onlyOwner() {
         require(msg.sender == owner, "Only contract owner is permitted for the operation");
@@ -146,16 +148,20 @@ contract ACG20 is StandardERC20 {
     }
 
     /**
-	* @dev Check if the transfer is the payment of an auction.
-    * - If it is, then
-    *    - transfer the ACG20 token from the frozen part
-    *    - reset the frozen record
-    * - If not, then transfer the ACG20 token from buyer's account
+	* @dev Used with methods PayForArtwork() and PayForArtworkFrom(). Throws if:
+    * - _from matches the record of bidder for the specific _artworkId, but
+    * - _value mismatches the record of bid for the specific _artworkId.
+    * If requirement is satisfied, the payment is considered to be for an ongoing auction, and then:
+    * - Withdraw the previously frozen tokens back to account of _from, and
+    * - Reset records of bid and bidder for the specific _artworkId
+    * @param _from The address which you want to send tokens from
+    * @param _value The amount of tokens to be transferred
+    * @param _artworkId The NFT id which the transfer is for
 	*/
     modifier isForAuction(address _from, uint256 _value, uint256 _artworkId) {
         if (_from == highestBidder[_artworkId]) {
             require (_value == highestBid[_artworkId], "Payment for the auction is different from the final bid");
-            // Withdraw the frozen tokesn to bidder's account
+            // Withdraw the frozen tokens to bidder's account
             balances[_from] = balances[_from].add(highestBid[_artworkId]);
             // Reset bid and bidder
             highestBidder[_artworkId] = address(0);
@@ -164,8 +170,18 @@ contract ACG20 is StandardERC20 {
         _;
     }
 
+    /**
+	* @dev Register the address of contract ACG721. This method should be called once the contract is deployed.
+	* @param _contract address of the deployed ACG721 contract
+    */
+    function registerACG721Contract(address _contract) public onlyOwner {
+        require(_contract != address(0), "Must register a valid contract address");
+        emit RegisterACG721Contract(_contract);
+        acg721Contract = _contract;
+    }
+
 	/**
-	* @dev Allows the current owner to transfer control of the contract to a newOwner.
+	* @dev Allows the current contract owner to transfer control of the contract to a new Owner.
 	* @param newOwner The address to transfer ownership to.
 	*/
     function transferOwnership(address newOwner) public onlyOwner {
@@ -175,35 +191,38 @@ contract ACG20 is StandardERC20 {
     }
 
     /**
-	* @dev Allows the user's balance as well as the total supply to be increated.
-    * @param _to address The address which you want to increase the balance
-	* @param _amount uint256 the amount of tokens to be increased
+	* @dev Allows the user's balance as well as the total supply to be increated. Only contract owner is capable to call this method.
+    * @param _to The address which you want to increase the balance
+	* @param _amount the amount of tokens to be increased
 	*/
-    function mint(address _to, uint256 _amount) public onlyOwner returns (bool) {
+    function mint(address _to, uint256 _amount) public onlyOwner {
         totalSupply = totalSupply.add(_amount);
         balances[_to] = balances[_to].add(_amount);
         emit Mint(_to, _amount);
         emit Transfer(address(0), _to, _amount);
-        return true;
     }
 
     /**
-	* @dev Destroy user's token and decrease the total supply as well.
-	* @param _amount uint256 the amount of tokens to be destroyed
+	* @dev Destroy user's tokens with given amount, and decrease the total supply as well. Anyone can burn tokens from his own account. Throws if amount to be destroyed exceeds account's balance.
+    *
+	* @param _amount the amount of tokens to be destroyed
 	*/
-    function burn(uint256 _amount) public returns (bool) {
+    function burn(uint256 _amount) public {
         require(balances[msg.sender] >= _amount, "Burned amount exceeds user balance");
         totalSupply = totalSupply.sub(_amount);
         balances[msg.sender] = balances[msg.sender].sub(_amount);
         emit Burn(msg.sender, _amount);
-        return true;
     }
 
     /**
-	* @dev Destroy delegated user's token and decrease the total supply as well.
-	* @param _amount uint256 the amount of tokens to be destroyed
+	* @dev Destroy delegated user's tokens with given amount, and decrease the total supply as well. Throws if:
+    * - amount to be destroyed exceeds account's balance, or
+    * - amount to be destroyed exceeds allowed amount to the spender
+    *
+    * @param _from the address from which you want to destroy tokens
+	* @param _amount the amount of tokens to be destroyed
 	*/
-    function burnFrom(address _from, uint256 _amount) public returns (bool) {
+    function burnFrom(address _from, uint256 _amount) public {
         require(balances[_from] >= _amount, "Burned amount exceeds user balance");
         require(allowed[_from][msg.sender] >= _amount, "Burned amount exceeds granted value");
 
@@ -211,16 +230,21 @@ contract ACG20 is StandardERC20 {
         balances[_from] = balances[_from].sub(_amount);
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
         emit Burn(_from, _amount);
-        return true;
     }
 
     /**
-	* @dev Freeze given amount of tokens for the auction.
-	* @param _from uint256 address to freeze tokens from
-    * @param _amount uint256 the amount of tokens to be frozen
-    * @param _artworkId uint256 ID of the artwork in auction
+	* @dev Freeze given amount of tokens from an account on purpose of auction. When a user proposes a valid bid during the acution period, tokens regarding to the bid will be moved out of his account, and so decrease his balance. The frozen tokens would be stored in a map with the key value of `_artworkId`. 
+    *
+    * Throws if:
+    * - `msg.sender` is not the contract owner, or
+    * - amount to be frozen is lower than previously frozen amount, that means current bid is even lower than previous one, or
+    * - the account's balance is lower than the amount to be frozen
+    *
+    * @param _from  address from which to freeze tokens
+    * @param _amount the amount of tokens to be frozen
+    * @param _artworkId NFT id for which the tokens are frozen, also used as key value of the map storing the frozen tokens
 	*/
-    function freeze(address _from, uint256 _amount, uint256 _artworkId) public onlyOwner returns (bool) {
+    function freeze(address _from, uint256 _amount, uint256 _artworkId) public onlyOwner {
         require(highestBid[_artworkId] < _amount, "Invalid operation: new bid should be greater than previous");
 
         // First unfreeze tokens for current bidder (might be same with _from)
@@ -240,18 +264,16 @@ contract ACG20 is StandardERC20 {
         emit Freeze(_from, _amount, _artworkId);
     }
 
-    /*
-    *bring the allowance function here to help us to bring it to the ACG20 interface.
-    */
-    function allowance(address _owner, address _spender) public view returns (uint256) {
-        return super.allowance(_owner, _spender);
-    }
-
     /**
-	* @dev Unfreeze tokens for the auction.
-	* @param _artworkId artwork uint256 ID of the artwork in auction
+	* @dev Withdraw the frozen tokens for NFT `_artworkId` back to the account who is holding the valid bid for `_artworkId`. This methods could be called if:
+    * - a higher bid is proposed for given NFT id, then the frozen tokens of previous bid owner would be unfrozen before freezing the tokens from new bidder's account, or
+    * - called explicited to cancel the auction for the specific NFT
+    * 
+    * Throws if `msg.sender` is not the contract owner.
+    *
+	* @param _artworkId NFT id for which the frozen tokens are withdrawn
 	*/
-    function unfreeze(uint256 _artworkId) public onlyOwner returns (bool) {
+    function unfreeze(uint256 _artworkId) public onlyOwner {
         address bidder = highestBidder[_artworkId];
         uint256 bid = highestBid[_artworkId];
 
@@ -265,27 +287,31 @@ contract ACG20 is StandardERC20 {
 
             emit Unfreeze(bidder, bid, _artworkId);
         }
-        return true;
     }
 
     /**
-	* @dev transfer token for a specified address for artwork purchase (support auction)
-	* @param _to The address to transfer to.
-	* @param _value The amount to be transferred.
-    * @param _artworkId The ID of artwork which the transfer is for
+	* @dev transfer tokens to another acccount to establish the purchase of specific NFT. Supports both normal sales and auctions. Also triggers the previously frozen tokens for `_artworkId` to be withdrawn firstly. The method is less likely to be used in consideration of security, without guarantee that account `_to` will successfully transfer NFT to `msg.sender`. Instead, `payForArtworkFrom()` is preferred as part of a safe transaction procedure. See `approveAndCall()` for more info.
+    * Throws if:
+    * - Currently recorded bid for `_artworkId` mismatchs (`_value`)
+    *
+	* @param _to The address to which the tokens are transfer.
+	* @param _value The amount of tokens to be transferred.
+    * @param _artworkId The NFT id for which the tokens are transferred.
 	*/
     function payForArtwork(address _to, uint256 _value, uint256 _artworkId) public isForAuction(msg.sender, _value, _artworkId) returns (bool) {
         return super.transfer(_to, _value);
     }
 
     /**
-	* @dev Transfer tokens from one address to another for artwork purchase(support auction)
-	* @param _from address The address which you want to send tokens from
-	* @param _to address The address which you want to transfer to
-	* @param _price uint256 the amount of tokens to be transferred to seller
-	* @param _commission uint256 the amount of tokens to be transferred to contract owner
-    * @param _artworkId The ID of artwork which the transfer is for
-    *   All issues from this function left
+	* @dev transfer delegated user's tokens to establish the purchase of NFT `_artworkId`. Supports both normal sales and auctions. Also triggers the tokens previously frozen tokens for `_artworkId` to be wighdrawn firstly, which is supposed to happen at the end of an auction. This method, as part of `approveAndCall()` procedure, is preferred than `payForArtwork()` in consideration of security. See `approveAndCall()` for more info.
+    * Throws if:
+    * - Currently recorded bid for `_artworkId` mismatchs (`_commission`+`_price`)
+    *
+	* @param _from The address which the tokens are transferred from
+	* @param _to The address which the tokens are transferred to
+	* @param _price the amount of tokens to be transferred
+	* @param _commission the amount of tokens to be transferred to contract owner as commission
+    * @param _artworkId The NFT id for which the tokens are transferred
 	*/
     function payForArtworkFrom(address _from, address _to, uint256 _price, uint256 _commission, uint256 _artworkId) public isForAuction(_from, _price.add(_commission), _artworkId) returns (bool) {
         require(super.transferFrom(_from, _to, _price), "Must transfer price to seller");
@@ -294,28 +320,31 @@ contract ACG20 is StandardERC20 {
     }
 
     /**
-	* @dev Register ACG721 contract
-	* @param _contract address The address of ACG721 contract
-    */
-    function registerACG721Contract(address _contract) public onlyOwner {
-        require(_contract != address(0), "Must register a valid contract address");
-        emit RegisterACG721Contract(_contract);
-        acg721Contract = _contract;
-    }
-
-    /**
-	* @dev Establish a safe transaction of buying a ACG721 token using ACG20 token.
-    *      Buyer first approves ACG721 contract to transfer the specific amount of 
-    *      ACG20 tokens under his account, and then call method  
-    *      receiveApproval() of ACG721 contract to accomplish the transaction.
-    *      Before calling this method, seller must approve this ACG20 contract to
-    *      transfer his ACG721 token with specific ID beforehead.
-    * @param _seller address The address of ACG721 token owner
-    * @param _price uint256 amount of ACG20 tokens transferred to ACG721 token owner
-    * @param _commission uint256 amount of ACG20 tokens transferred to contract owner
-    * @param _artworkId The ID of ACG721 which the transfer is for
+	* @dev Establish a safe payment for a NFT with tokens, inspired by : https://medium.com/@jgm.orinoco/ethereum-smart-service-payment-with-tokens-60894a79f75c. 
+    * Guarantees:
+    * - token owner transfers tokens to NFT owner, and
+    * - NFT owner transfer NFT to token owner.
+    *
+    * Throws if:
+    * - A NFT contract has not been registered yet, or
+    * - call to `approve()` failed, or
+    * - call to `receiveApproval()` of the registered NFT contract failed.
+    *
+    * The method introduces both this and the NFT contract accounts in the transaction as the intermediator, and establishes:
+    * Step 1: `msg.sender` approves amount (`_price`+`_commission`) of his token to be transferred by the registered NFT contract;
+    * Step 2: `msg.sender` calls method `receiveApproval()` of the registered NFT contract;
+    * Step 3: NFT contract, while be called on `receiveApproval()`, will:
+    *   Step 3.1: transfer tokens from `msg.sender` to `seller` with amount of `_price`, and to the contract owner with amount of `_commission` , and then:
+    *   Step 3.2: change owner of the NFT with id `_artworkId` to `msg.sender`
+    *
+    * Note that before calling `approveAndCall()`, `_seller` is required to approve his NFT with id `_artworkId` to be transferred by this contract.
+    *
+    * @param _seller address which the tokens are transferred to
+    * @param _price the amount of tokens transerred to _seller address
+    * @param _commission the amount of tokens transferred to contract owner as commission
+    * @param _artworkId the NFT id which the tokens are transferred for
 	*/
-    function approveAndCall(address _seller, uint256 _price, uint256 _commission, uint256 _artworkId) public returns (bool) {
+    function approveAndCall(address _seller, uint256 _price, uint256 _commission, uint256 _artworkId) public {
         require(acg721Contract != address(0), "Must register a valid contract before calling approveAndCall() method");
         approve(acg721Contract, _price.add(_commission));
 
