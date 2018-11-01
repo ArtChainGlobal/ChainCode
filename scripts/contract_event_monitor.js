@@ -1,8 +1,4 @@
 const AcgApi = require('../api/artChainGlobalAPI.js');
-const path = require('path');
-const chainConf = require('./chainConf.json');
-
-const RPC_SERVER = chainConf.RPC_SERVER;
 
 const acgApi = AcgApi();
 let web3;
@@ -12,56 +8,8 @@ function sleep(ms) {
 }
 
 async function prepare () {
-    // ----------------------------------------------------------
-    // Connect to RPC server
-    // ----------------------------------------------------------
-    web3 = await acgApi.connect_to_chain(RPC_SERVER);
 
-    if (chainConf.CTRL_COMPILE_NEW_CONTRACT_AND_DEPLOY) {
-        // ----------------------------------------------------------
-        // Compile new contracts from source code and deploy to chain
-        // ----------------------------------------------------------
-
-        // Step 1: Compile contracts from source
-        const contract_folder = path.resolve(__dirname, '..', 'contracts');
-        acgApi.compile_contract_from_source(contract_folder);
-
-        // Step 2: Deploy the contracts to the chain
-        await acgApi.deploy_new_contracts();
-    } else {
-        // ----------------------------------------------------------
-        // Retrieve contracts instance from the chain
-        // ----------------------------------------------------------
-
-        // Step 1. Load contract interface definition
-        const contract_folder = path.resolve(__dirname, '..', 'build', 'contracts');
-        acgApi.read_in_compiled_contract_JSON(contract_folder);
-        
-        // Step 2. Retrieve deployed contracts instance by address and interface
-        const contract_address = [
-            chainConf.CONTRACT_20_ADDRESS,
-            chainConf.CONTRACT_721_ADDRESS
-        ];
-        await acgApi.retrieve_deployed_contracts(contract_address);
-    }
-
-    // ----------------------------------------------------------
-    // CREATE NEW ACCOUNTS ON THE NODE FOR TEST
-    // ----------------------------------------------------------
-    if (chainConf.CTRL_CREATE_NEW_ACCOUTNS_FOR_TEST) {
-        const user_number = 5;
-        const prefund_eth = 1e6;
-        let users = [];
-        // Create test accounts with prefunded eth
-        for (let i=0; i<user_number; i++) {
-            users[i] = await acgApi.create_new_account_and_top_up('password', prefund_eth);
-        }
-        // Print out initial balance of testing accounts
-        for (let i=0; i<user_number; i++) {
-            const userBalance = await web3.eth.getBalance(users[i]);
-            console.log("Test accounts: ", users[i], "initial balance is ", web3.utils.fromWei(userBalance, "ether"), "ether");
-        }
-    }
+    web3 = await acgApi.prepare();
 
     // ----------------------------------------------------------
     // Simple test
