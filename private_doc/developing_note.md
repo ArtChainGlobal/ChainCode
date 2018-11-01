@@ -419,6 +419,31 @@ And run the binary by:
 ./node_modules/.bin/solidity-coverage
 ```
 
+### Document (Doxity)
+
+Install by `npm install @digix/doxity`, then initialize the document project by `node_modules/.bin/doxity init`
+
+You might see following error info:
+
+```shell
+Error: EEXIST: file already exists, mkdir '/Users/nakajo/doxity-sample/scripts/doxity-tmp-Wed Dec 20 2017 09:10:17 GMT+0900 (JST)/doxity-gatsby-starter-project-a4886b7a7a04c018ac04fed3125d7d4785e74bed/components'
+```
+
+Retry until you succeeded. Then you need to manually copy all the files from *./doxity-tmp-Thu.../doxity-gatsby-sta....* to *./doxity/*. Then install required packages by `cd ./scripts/doxity; npm install`
+
+To generate the document, you need have following files/folders under project fold:
+
+- contracts/*.sol
+- README.md
+- package.JSON (use `npm init` to create a *package.json*)
+
+Then generate the document by `node_modules/.bin/doxity build`. The documents will be stored under *./docs*.
+
+To check the document locally, you need to first start web server by `cd ./scripts/doxity; npm run develop`, and then check the document at http://127.0.0.1:8000
+
+To publish to Github, before the builing step ensure you have set `linkPrefix` in *scripts/doxity/config.toml* to be equal to your repo's name (e.g. /my-project).
+
+
 ## Environment setup
 
 ### test the contracts on testnet
