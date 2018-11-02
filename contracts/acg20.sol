@@ -161,11 +161,12 @@ contract ACG20 is StandardERC20 {
     modifier isForAuction(address _from, uint256 _value, uint256 _artworkId) {
         if (_from == highestBidder[_artworkId]) {
             require (_value == highestBid[_artworkId], "Payment for the auction is different from the final bid");
+
             // Withdraw the frozen tokens to bidder's account
             balances[_from] = balances[_from].add(highestBid[_artworkId]);
             // Reset bid and bidder
-            highestBidder[_artworkId] = address(0);
-            highestBid[_artworkId] = 0;
+            delete highestBidder[_artworkId];
+            delete highestBid[_artworkId];
         }
         _;
     }
@@ -282,8 +283,8 @@ contract ACG20 is StandardERC20 {
             balances[bidder] = balances[bidder].add(bid);
 
             // Reset bid and bidder
-            highestBidder[_artworkId] = address(0);
-            highestBid[_artworkId] = 0;
+            delete highestBidder[_artworkId];
+            delete highestBid[_artworkId];
 
             emit Unfreeze(bidder, bid, _artworkId);
         }
