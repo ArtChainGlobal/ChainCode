@@ -4,6 +4,83 @@
 
 ### Block chain
 
+#### tx pool
+
+##### Summary
+
+From [this post](https://ethereum.stackexchange.com/questions/2808/what-happens-when-a-transaction-nonce-is-too-high):
+
+* Transactions with too low a nonce get immediately rejected.
+* Transactions with too high a nonce get placed in the transaction pool queue.
+* If transactions with nonces that fill the gap between the last valid nonce and the too high nonce are sent and the nonce sequence is complete, all the transactions in the sequence will get processed and mined.
+* When the geth instances are shut down and restarted, **transactions in the transaction pool queue disappear**.
+* The transaction pool queue will only hold a maximum of 64 transactions with the same From: address with nonces out of sequence.
+* The geth instance can be crashed by filling up the transaction pool queue with 64 transactions with the same `From:` address with nonces out of sequence by, for example:
+  * Creating many accounts with a minimal amount of ethers (0.05 ETH in my tests)
+  * Sending 64 transactions from each account with a large data payload
+  * For the 4 Gb memory limit that I placed on my geth instance, 400 x 64 transactions with a payload of about 4,500 bytes would crash the geth instance (from my limited testing anyway).
+  * **These transactions with too high a nonce do NOT propagate to other nodes** and crash other nodes on the Ethereum network.
+* The Ethereum World Computer cannot be brought down with transactions with too high a nonce. Good work, developers!
+
+##### How many transactions could be sotred in the pool?
+
+According to [What is the max size of transactions can clients like geth keep in txpool?
+](https://ethereum.stackexchange.com/questions/3831/what-is-the-max-size-of-transactions-can-clients-like-geth-keep-in-txpool):
+
+> **Pending Transaction Pool**
+
+> Pending transactions are stored in TxPool.pending that is a map(transaction hash -> pointer to transaction). In go-ethereum - tx_pool.go, there is no limit check to the number of transaction when adding transactions to this data structure.
+
+> The number of transactions in the pending transaction pool is effectively limited by memory.
+
+> **Transaction Queue**
+
+> Queued transactions are stored in TxPool.queue that is a map(from address -> map(transaction hash -> pointer to transaction)). In go-ethereum - tx_pool.go, there is a check that the number of transactions from the same From address does not exceed maxQueued = 64.
+
+> The number of transactions in the transaction queue is effectively limited by memory, with the limitation that there can only be a maximum of 64 transactions for transactions with the same From address.
+
+##### Geth Behavior
+
+Geth argument for this configuration:
+- --txpool.accountslots value  Minimum number of executable transaction slots guaranteed per account (default: 16)
+- --txpool.globalslots value   Maximum number of executable transaction slots for all accounts (default: 4096)
+- --txpool.accountqueue value  Maximum number of non-executable transaction slots permitted per account (default: 64)
+- --txpool.globalqueue value   Maximum number of non-executable transaction slots for all accounts (default: 1024)
+
+##### What happens if txpool pending and queued are all full?
+
+core/tx_pool.go (#436-456) shows the code that removes transactions if the queue is too full:
+
+```go
+for i, entry := range promote {
+    // If we reached a gap in the nonces, enforce transaction limit and stop
+    if entry.Nonce() > guessedNonce {
+        if len(promote)-i > maxQueued {
+            if glog.V(logger.Debug) {
+                glog.Infof("Queued tx limit exceeded for %s. Tx %s removed\n", common.PP(address[:]), common.PP(entry.hash[:]))
+            }
+            for _, drop := range promote[i+maxQueued:] {
+                delete(txs, drop.hash)
+            }
+        }
+        break
+    }
+    // Otherwise promote the transaction and move the guess nonce if needed
+    pool.addTx(entry.hash, address, entry.Transaction)
+    delete(txs, entry.hash)
+
+    if entry.Nonce() == guessedNonce {
+        guessedNonce++
+    }
+}
+```
+
+One possible result is, according to [When there are too many pending transactions](https://blog.infura.io/when-there-are-too-many-pending-transactions-8ec1a88bc87e):
+
+> This may be why token launch contributors sometimes see their transactions disappear after sending them to a client (via the JSON-RPC method eth_sendRawTransaction), even if the client's response (a transaction hash) appears to indicate success. The transactions are simply purged from the mempool while the network is overloaded. They may never reach a miner.
+
+#### P2P Network Model
+
 #### 常见的共识算法
 
 共识算法的评判标准
