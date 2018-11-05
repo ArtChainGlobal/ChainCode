@@ -566,7 +566,7 @@ Option | Explanation
   --wsaddr value       |  WS-RPC服务器监听地址(default: "localhost")
   --wsport value       |  WS-RPC服务器监听端口(default: 8546)
   --wsapi value        |  指定需要调用的WS-RPC API接口，默认只有eth,net,web3
-  --wsorigins value    |  指定接收websocket请求的来源
+  --wsorigins value    |  **指定接收websocket请求的来源**
   --ipcdisable         |  禁掉IPC-RPC服务
   --ipcpath            |  指定IPC socket/pipe文件目录（明确指定路径）
   --rpccorsdomain value|  指定一个可以接收请求来源的以逗号间隔的域名列表（浏览器访问的话，要强制指定该选项）
@@ -577,27 +577,32 @@ Option | Explanation
   --nodiscover | Disables the peer discovery mechanism (manual peer addition)
   --maxpeers | value Maximum number of network peers (network disabled if set to 0) (default: 25)
   --networkid | value Network identifier (integer, 1=Frontier, 2=Morden (disused), 3=Ropsten) (default: 1)
-  --rpc | Enable the HTTP-RPC server
-  --rpccorsdomain | value Comma separated list of domains from which to accept cross origin requests (browser enforced)
 
-To start the node, use following command:
+Example to start a geth client:
 
 ```shell
-geth --datadir node0 --port 30000 --nodiscover --unlock '0' --rpc --rpcapi "web3,eth,net,admin,personal" --rpccorsdomain "http://localhost:8000" --rpcport 31000 --mine
+geth
+ --datadir node0 --port 30000 --nodiscover
+ --unlock '0' --password ../testnet/node0/password      // Unlock the account
+ --ws --wsport 31000 --wsorigins "*"
+ --wsapi "db,web3,eth,net,admin,personal"               // Enable websocket
+ --rpc --rpcport 31002 --rpccorsdomain "*"
+ --rpcapi "web3,eth,net,admin"                          // Enable RPC
+ --mine                                                 // Start mining automatically
+ --gcmode archive                                       // Save anything to disc but not memory in case of node restart
+ --txpool.lifetime 24h
+ --txpool.accountslots 65536
+ --txpool.globalslots  65536
+ --txpool.accountqueue 64
+ --txpool.globalqueue  65536                            // Improve txpool capacity, note `accountqueue` is up to 64
 ```
 
-This way guarantees the node:
-- rpc enabled
-- starting mining automatically
-- not locking automatically
-- customized port
-- enforcing browser access
-- permit web3.js to use *peronsal* api to operate on the accounts
-
-If we want to use webSocket to connect (so as to support monitor the events by `events.allEvents` in web3.js), we should start the node by:
+To attach to a client, use:
 
 ```shell
-geth --datadir node0 --port 30000 --nodiscover --unlock '0' --ws --wsport 31000 --wsorigins "*" --wsapi "db,web3,eth,net,admin,personal" --mine
+geth attach ipc:<ipc file path>
+geth http://<RPC addr>:<RPC port>
+geth ws://<ws addr>:<ws port>
 ```
 
 #### Step 4: add peer nodes
@@ -738,17 +743,68 @@ An explanation about this *archive mode* is:
 
 > As far as I know, Parity even offers a sync mode where only a defined amount of past states are logged, limiting the size of the synced chain data.
 
-Remaining question:
+#### Security issue: Use IPC, RPC or WebSocket
 
-- will this affect file size seriously?
+A basic explanation is [What are ipc and rpc?](https://ethereum.stackexchange.com/questions/10681/what-are-ipc-and-rpc)
 
-#### Security issue: Use IPC, RPC or WebSocket?
+A more specific analysis is found here [How to reduce the chances of your Ethereum wallet getting hacked?](https://ethereum.stackexchange.com/questions/3887/how-to-reduce-the-chances-of-your-ethereum-wallet-getting-hacked).
 
-
-
-#### How to ensure every account has enough eth to operate on the network?
+#### How to ensure every account has enough eth to operate on the network
 
 Minting new eth after the creation of network is **impossible**, refer to [How to mint coins on a private PoA network?](https://ethereum.stackexchange.com/questions/50297/how-to-mint-coins-on-a-private-poa-network).
+
+### Cloud server chain
+
+we have a group of cloud server:
+
+- Ali
+
+root@47.74.69.177
+root@47.74.70.159
+root@47.91.56.32
+
+- AWS
+
+ubuntu@13.238.184.2
+ubuntu@54.252.240.251
+ubuntu@13.239.27.233
+
+#### Geth configuration
+
+Startup command
+
+```shell
+geth --datadir node0 --port 11017 --nodiscover --unlock '0' --password ./node0/password --ws --wsaddr "0.0.0.0" --wsport 31000 --wsorigins "*" --wsapi "db,web3,eth,net,admin,personal,txpool" --mine --gcmode archive --txpool.lifetime 24h --txpool.accountslots 65536 --txpool.globalslots 65536 --txpool.accountqueue 64 --txpool.globalqueue 65536
+```
+
+Geth version:
+- Ali1: 1.8.16-unstable
+- Ali2: 1.8.15-stable
+- Ali3: 1.8.17-stable
+- AWS1: 1.8.18-unstable
+- AWS2: 1.8.18-unstable
+- AWS3: 1.8.18-unstable
+
+#### Performance
+
+On Ali server:
+
+1. call 28x add_new_user() at same time - PASS
+1. call 29x add_new_user() at same time - Geth crash: fatal error: runtime: out of memory
+
+1. call 128x add_new_user() with fixed 800 milli-second interval - PASS
+1. call 128x add_new_user() with fixed 600 milli-second interval - Geth crash
+
+#### Issue
+
+1. Ali node doesn't broadcast pending transactions to other node?
+
+Refer to [How To Set Up Time Synchronization on Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-set-up-time-synchronization-on-ubuntu-16-04)
+Set NTP by set `timedatectl set-local-rtc 0` on Ali servers. Check `txpool.status` in other geth to confirm they receive the broadcasted transactions.
+
+1. AWS geth crash once more than one transactions are submitted?
+
+TODO investigate the root cause
 
 ### using truffle for development and test
 
@@ -875,6 +931,8 @@ I'll also introduce this non-standard interface *approveAndCall()* in our ACG to
 
 ### To-do
 
+2. Do we need to average the services on diffferent nodes?
+
 ## Project
 
 ### background
@@ -900,6 +958,18 @@ Hi Lin and Cuong, I have applied two Aliyun cloud server for each of u.
 The server is equipped with a relatively complete "Go" envirnment and the Ethereum source code, which u can directly try to bulid up your private chain. To see the go environment details through "$ go env " and to launch private chains through the guide link I sent this morning. The Ethereum source codes are in path: "/home/gopath/src/go-ethereum/", and the Ethereum executive files are in path: "home/gopath/src/go-ethereum/build/bin". u can try some test on the server.
 
 The requirement is not 100 super-nodes, is 100 pre-fund nodes. The super nodes are around 6 nodes(which can execute "mine" process). Creating nodes is actually to obtain the "address"es, and the command is "$ geth --datadir node account new". When creatting the nodes, remember the address and write it into the genesis.json.  I have finished parts of the whole process (1.automatically creat 100 nodes[deploy.sh], 2.creat genesis.json at normal step[setgen.sh], 3.launch console[console.sh]). The rest unfinished parts are to automatically read 100 addresses and write them into genesis.json (beteewn 1 and 2) and read and write the staticnodes file(between 2 and 3).  The parameters (like address) in sh is not the final state, it varies each time when you re-creat the accounts or re-deploy the testnet. Plz just read it as an reference. The single node complete deployment process you can see is:  [利用puppeth搭建POA共识的以太坊私链网络][19]
+
+Cloud server list:
+
+Ali:
+root@47.74.69.177
+root@47.74.70.159
+root@47.91.56.32
+
+AWS:
+ubuntu@13.238.184.2
+ubuntu@54.252.240.251
+ubuntu@13.239.27.233
 
 ### work list
 
