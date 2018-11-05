@@ -222,12 +222,6 @@ describe('API basic test framework', async function () {
             const sell_commission = Math.floor(artwork_prize * Number(artwork_info.loyalty));
             const sell_price = artwork_prize - sell_commission;
 
-            // Unlock both seller and buyer for subsequent operations
-            const trans_unlock_buyer = web3.eth.personal.unlockAccount(collector, "password", 600);
-            const trans_unlock_seller = web3.eth.personal.unlockAccount(artist, "password", 600);
-            await trans_unlock_buyer;
-            await trans_unlock_seller;
-
             // Wait for the return of user balance
             const buyer_balance_before = await trans_get_buyer_balance;
             const seller_balance_before = await trans_get_seller_balance;

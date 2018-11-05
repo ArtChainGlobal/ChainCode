@@ -14,6 +14,8 @@ function ACGChainAPI() {
     let interface_20;
     let interface_721;
 
+    const account_password_record = [];
+
     const new_account_topup_value = 1e2;
     const post_artwork_incentive = 1e3;
 
@@ -86,6 +88,11 @@ function ACGChainAPI() {
         return users.slice(2, 2+user_number);
     }
 
+    async function _unlock_account(address, password) {
+        // Keep account unlocked for one hour
+        return web3.eth.personal.unlockAccount(address, password, 60*60);
+    }
+
     async function prepare() {
 
         // Connect to private chain
@@ -126,13 +133,20 @@ function ACGChainAPI() {
 
     async function add_new_user(password) {
         // Create a new account on the node
-        const user_address = await web3.eth.personal.newAccount(password);
+        const user_address = await web3.eth.personal.newAccount(password, {
+            from: administrator
+        });
+        account_password_record[user_address] = password;
         // Top up some eth for new user
         await safeguard_account_balance(user_address);
         return user_address;
     }
 
     async function post_new_artwork(user_address, artwork_info) {
+
+        // Unlock user account
+        await _unlock_account(user_address, account_password_record[user_address]);
+
         // Generate an artwork ID, first get current timestamp,
         // i.e., the number of milliseconds since 1 January 1970 00:00:00
         let artwork_id = new Date().getTime();
@@ -144,13 +158,13 @@ function ACGChainAPI() {
         // Store 721 Token for user, because we don't know the size of
         // meta data, so need first estimate required gas amount for the transaction
         const gasValue = await contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).estimateGas({
-            from: administrator
+            from: user_address
         });
         const trans_721_mint = contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).send({
-            from: administrator,
+            from: user_address,
             gas: Math.floor(gasValue * 1.5)
         });
-        // Store 20 Token as prize of posting artwork
+        // Store 20 Token as prize of posting artwork - Only administrator is capable of doing that
         const trans_20_mint = contract20.methods.mint(user_address, post_artwork_incentive).send({
             from: administrator
         });
@@ -177,6 +191,10 @@ function ACGChainAPI() {
     }
 
     const buy_artwork = async (buyer_address, owner_address, artwork_id, artwork_price) => {
+
+        // Unlock accounts
+        const trans_unlock_buyer = _unlock_account(buyer_address, account_password_record[buyer_address]);
+        const trans_unlock_owner = _unlock_account(owner_address, account_password_record[owner_address]);
 
         let transaction_id = 0;
         let metadata;
@@ -208,6 +226,7 @@ function ACGChainAPI() {
             from: owner_address
         });
         try {
+            await trans_unlock_owner;
             await trans_approve_artwork;
         } catch (err) {
             console.log("Failed on approve() from artwork seller");
@@ -216,6 +235,7 @@ function ACGChainAPI() {
 
         // Submit the purchase transaction
         try {
+            await trans_unlock_buyer;
             const gasValue = await contract20.methods.approveAndCall(
                 owner_address, price, commission, artwork_id).estimateGas({
                 from: buyer_address
