@@ -50,14 +50,26 @@ function ACGChainAPI() {
     }
 
     async function _create_new_account_and_top_up(password, value) {
+        var user = 0x0; //initiate default value for user
         // Create a new account on the node
-        const user = await web3.eth.personal.newAccount(password);
-        // Top up some eth for new user
-        await web3.eth.sendTransaction({
-            from: administrator,
-            to: user,
-            value: web3.utils.toWei(value.toString(), "ether")
-        });
+        try {
+            user = await web3.eth.personal.newAccount(password);
+            // Top up some eth for new user
+            try {
+                await web3.eth.sendTransaction({
+                    from: administrator,
+                    to: user,
+                    value: web3.utils.toWei(value.toString(), "ether")
+                });
+            } catch(err) {
+                user = 0x0;
+                console.log("Top up for new account error ", err);
+            }
+           
+        } catch(err) {
+            console.log("Creating new user account err: ", err);
+        }
+       
         return user;
     };
 
@@ -119,19 +131,38 @@ function ACGChainAPI() {
         console.log("Simple test: ACG20 name =", name);
         console.log("Simple test: Owner of ACG721 =", owner);
     }
-
+    
     function get_contracts_instrance() {
         return [contract20, contract721];
     }
 
+    /**
+     * This function always returns a promise,
+     * return value: 0x0 for failure to create new account
+     * return value: address if success to create new account
+     * error messgae can be seen at the console
+     * @param {*} password provided by user
+     */
     async function add_new_user(password) {
+        var user = 0x0; //default value for new user;
         // Create a new account on the node
-        const user_address = await web3.eth.personal.newAccount(password);
-        // Top up some eth for new user
-        await safeguard_account_balance(user_address);
+        try {
+            user_address = await web3.eth.personal.newAccount(password);
+            // Top up some eth for new user
+            await safeguard_account_balance(user_address);
+        } catch(err) {
+            console.log("Create new user failed ", err);
+        }        
         return user_address;
     }
 
+    /**
+     * This function will return a promise (artwork_id), so promise need to be handle
+     * return value: 0 if any went wrong
+     * return value: artwork_id if nothing wrong
+     * @param {*} user_address provided by user
+     * @param {*} artwork_info provided by user
+     */
     async function post_new_artwork(user_address, artwork_info) {
         // Generate an artwork ID, first get current timestamp,
         // i.e., the number of milliseconds since 1 January 1970 00:00:00
@@ -143,21 +174,26 @@ function ACGChainAPI() {
 
         // Store 721 Token for user, because we don't know the size of
         // meta data, so need first estimate required gas amount for the transaction
-        const gasValue = await contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).estimateGas({
-            from: administrator
-        });
-        const trans_721_mint = contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).send({
-            from: administrator,
-            gas: Math.floor(gasValue * 1.5)
-        });
-        // Store 20 Token as prize of posting artwork
-        const trans_20_mint = contract20.methods.mint(user_address, post_artwork_incentive).send({
-            from: administrator
-        });
-
-        // Waiting for the operation on the chain
-        await trans_20_mint;
-        await trans_721_mint;
+        try {
+            const gasValue = await contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).estimateGas({
+                from: administrator
+            });
+            const trans_721_mint = contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).send({
+                from: administrator,
+                gas: Math.floor(gasValue * 1.5)
+            });
+            // Store 20 Token as prize of posting artwork
+            const trans_20_mint = contract20.methods.mint(user_address, post_artwork_incentive).send({
+                from: administrator
+            });
+    
+            // Waiting for the operation on the chain
+            await trans_20_mint;
+            await trans_721_mint;
+        } catch(err) {
+            artwork_id = 0;
+            console.log("something wrong with topup ACG20 and ACG721 ", err);
+        }       
 
         return artwork_id;
     }
@@ -176,9 +212,18 @@ function ACGChainAPI() {
         });
     }
 
+    /**
+     * This function also return a promise, need to be handle
+     * return value: 0x0    if anything went wrong
+     * return value: transactionHash value: if nothing wrong.
+     * @param {*} buyer_address provided by user
+     * @param {*} owner_address provided by user
+     * @param {*} artwork_id    provided by user
+     * @param {*} artwork_price provided by user
+     */
     const buy_artwork = async (buyer_address, owner_address, artwork_id, artwork_price) => {
 
-        let transaction_id = 0;
+        let transaction_id = 0x0;
         let metadata;
 
         // Retrieve artwork infomation to calculate commission
@@ -233,46 +278,91 @@ function ACGChainAPI() {
         return transaction_id;
     }
 
+    /**
+     * This function also return a promise
+     * return value: 0x0    if anything went wrong
+     * return value: transactionHash value, if nothing wrong.
+     * @param {*} buyer_address provided by user
+     * @param {*} value         provided by user
+     */
     async function buy_token(buyer_address, value) {
-        const receipt = await contract20.methods.mint(buyer_address, value).send({
-            from: administrator
-        });
-
-        return receipt.transactionHash;
+        let transaction_id = 0x0;   //default value
+        try {
+            const receipt = await contract20.methods.mint(buyer_address, value).send({
+                from: administrator
+            });
+            return receipt.transactionHash;
+        } catch(err) {
+            console.log("topup ACG20 token error ", err);
+            return transaction_id;
+        }       
     }
 
+    /**
+     * This function also return a promise
+     * return value: 0x0    if anything went wrong
+     * return value: transactionHash value, if nothing wrong.
+     * @param {*} buyer_address provided by user
+     * @param {*} artwork_id    provided by user
+     * @param {*} artwork_prize provided by user
+     */
     async function freeze_token(buyer_address, artwork_id, artwork_prize) {
+        let transaction_id = 0x0;
         // Check artwork status is in auction
         const artwork_info = await contract721.methods.referencedMetadata(artwork_id).call();
         if (artwork_info.length <= 0) {
             console.log("Given artwork ID is not stored in the contract");
-            return 0;
+            return transaction_id;
         }
-
-        const gasValue = await contract20.methods.freeze(buyer_address, artwork_prize, artwork_id).estimateGas({
-            from: administrator
-        });
-        // freeze buyer's ACG20 token
-        const receipt = await contract20.methods.freeze(buyer_address, artwork_prize, artwork_id).send({
-            from: administrator,
-            gas: Math.floor(gasValue * 1.5)
-        });
-
-        return receipt.transactionHash;
+        try {
+            const gasValue = await contract20.methods.freeze(buyer_address, artwork_prize, artwork_id).estimateGas({
+                from: administrator
+            });
+            // freeze buyer's ACG20 token
+            const receipt = await contract20.methods.freeze(buyer_address, artwork_prize, artwork_id).send({
+                from: administrator,
+                gas: Math.floor(gasValue * 1.5)
+            });    
+            return receipt.transactionHash;
+        } catch(err) {
+            Console.log("Freezing token error as: ", err);
+            return transaction_id;
+        }        
     }
 
+    /**
+     * this function also return a promise
+     * return value: the function will return an array of owner_address and artwork_info
+     * return value for owner_address: 0x0 if mismatch artwork_id or it does not exist
+     * return value for artowrk_info: "" - empty string, if the artwork_id provided does not exist
+     * return value for other cases: owner_address: address, artwork_infor: a string
+     * @param {*} artwork_id provided by user
+     */
     async function check_artwork(artwork_id) {
+        let owner_address = 0x0;    //initiate owner_address as default value
+        let artwork_info = "";      //default value for the artwork_info
         // Query owner according to token ID
-        const trans_query_owner = contract721.methods.ownerOf(artwork_id).call();
-        // Query metadata according to token ID
-        const trans_query_metadata = contract721.methods.referencedMetadata(artwork_id).call();
-        // Wait for the return values
-        const owner_address = await trans_query_owner;
-        const metadataString = await trans_query_metadata;
-        const artwork_info = JSON.parse(metadataString);
+        try {
+            owner_address = await contract721.methods.ownerOf(artwork_id).call();
+        } catch(err) {
+            console.log("mismatch artwork_id or it does not exist ", err);
+        }
+        
+        try {
+            const metadataString = await contract721.methods.referencedMetadata(artwork_id).call();
+            artwork_info = JSON.parse(metadataString);
+        } catch(err) {
+            console.log("the artwork_id provided does not exist ", err);
+        }               
         return [owner_address, artwork_info];
     }
 
+    /**
+     * this function also return a promise
+     * return value: an array of type, user_balance_acg20, user_balance_acg721, artwork_id_list
+     * return value: artwork_id_list: is also an array of artowrk_id
+     * @param {*} user_address provided by user
+     */
     async function check_user(user_address) {
         const type = "";
 
@@ -322,6 +412,7 @@ function ACGChainAPI() {
         check_artwork: check_artwork,
         check_user: check_user,
         check_transaction: check_transaction
+        // All those above API are promises, need to handle as promises.
     };
 }
 
