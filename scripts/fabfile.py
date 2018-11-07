@@ -6,7 +6,7 @@ from fabric.api import local,cd,run,env
 #env.hosts=['47.74.69.177','47.74.70.159','root@47.91.56.32'] #ssh要用到的参数
 #env.user='root'
 
-env.password='Asdf1234!@'
+env.password='xxxxxx'
 #env.roledefs = {
 #            'ALIserver': ['root@47.74.69.177','root@47.74.70.159','root@47.91.56.32'],
 #            'AWSserver': ['ubuntu@13.238.184.2','ubuntu@54.252.240.251','ubuntu@13.239.27.233']
