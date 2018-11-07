@@ -7,12 +7,12 @@
 #scp root@47.74.70.159:/root/tmp.47.74.70.159 ~/gopath/testsh/
 #scp root@47.91.56.32:/root/tmp.47.91.56.32 ~/gopath/testsh/ 
 
-scp ubuntu@52.65.76.142:/home/ubuntu/address.52.65.76.142 ~/gopath/testsh/
-scp ubuntu@13.210.167.55:/home/ubuntu/address.13.210.167.55 ~/gopath/testsh/
-scp ubuntu@13.236.44.25:/home/ubuntu/address.13.236.44.25 ~/gopath/testsh/
-scp root@47.91.40.55:/root/address.47.91.40.55 ~/gopath/testsh/
-scp root@47.74.70.195:/root/address.47.74.70.195 ~/gopath/testsh/
-scp root@47.91.47.9:/root/address.47.91.47.9 ~/gopath/testsh/ 
+scp ubuntu@52.65.76.142:/home/ubuntu/tmp.52.65.76.142 ~/gopath/testsh/
+scp ubuntu@13.210.167.55:/home/ubuntu/tmp.13.210.167.55 ~/gopath/testsh/
+scp ubuntu@13.236.44.25:/home/ubuntu/tmp.13.236.44.25 ~/gopath/testsh/
+scp root@47.91.40.55:/root/tmp.47.91.40.55 ~/gopath/testsh/
+scp root@47.74.70.195:/root/tmp.47.74.70.195 ~/gopath/testsh/
+scp root@47.91.47.9:/root/tmp.47.91.47.9 ~/gopath/testsh/ 
 
 
 v[0]=$(cat tmp.52.65.76.142)
