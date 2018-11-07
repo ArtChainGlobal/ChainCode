@@ -163,9 +163,10 @@ const deployConf = require('../static/deployConf.json');
      * return value: 0 if any went wrong
      * return value: artwork_id if nothing wrong
      * @param {*} user_address provided by user
+     * @param {*} password     provided by user
      * @param {*} artwork_info provided by user
      */
-    async function post_new_artwork(user_address, artwork_info) {
+    async function post_new_artwork(user_address, password, artwork_info) {
         // Generate an artwork ID, first get current timestamp,
         // i.e., the number of milliseconds since 1 January 1970 00:00:00
         let artwork_id = new Date().getTime();
@@ -174,8 +175,8 @@ const deployConf = require('../static/deployConf.json');
         // Generate meta data
         const metadata = JSON.stringify(artwork_info);
 
-        // unlock account for 1 minutes
-        const unlockAccount = await unlock_account(user_address, 60);
+        // unlock account for 60 seconds
+        const unlockAccount = await unlock_account(user_address, password, 60);
         if (unlockAccount) {
             // Store 721 Token for user, because we don't know the size of
             // meta data, so need first estimate required gas amount for the transaction
@@ -206,84 +207,135 @@ const deployConf = require('../static/deployConf.json');
         return artwork_id;
     }
 
-    async function update_artwork(artwork_id, artwork_info) {
+   
+    /**
+     * this function also return a promise
+     * artwork_status would be one of: presenting, selling, auction
+     * @param {*} artwork_id    provided by user
+     * @param {*} artwork_info  provided by user, or default = ""
+     * @param {*} artwork_status provided by user, or default = "presenting"
+     */
+    async function update_artwork(owner_address, password, artwork_id, artwork_info, artwork_status) {
+        let transaction_id = 0x0;
+        // need to verify owner;
+        if (!verify_artwork_owner(owner_address, artwork_id)) {
+            console.log("mismatch owner_address of the artwork ID, or it does not exist");
+            return transaction_id;
+        }
+        if (artwork_status === "selling" || artwork_status === "auction") {
+            // at first, unlock the account of owner for 30 second
+            const unlockAccount = await unlock_account(owner_address, password, 60);
+            if (!unlockAccount) {
+                console.log("unlock accoung of owner err");
+                return transaction_id;
+            }
+            //them, the owner will approve for administraor to sell his artwork at the price
+             // Ask seller to approve contract ACG20 to transfer the specified artwork            
+            try {
+                const trans_approve_artwork = await instance721.methods.approve(
+                    address_20, artwork_id).send({
+                    from: owner_address
+                });
+                console.log(owner_address + " approve " + address_20 + " to transfer " + artwork_id);
+                return trans_approve_artwork.transactionHash;
+            } catch (err) {
+                console.log("Failed on approve() from artwork seller");
+                return transaction_id;
+            }
+        }
         // Generate meta data
-        const metadata = JSON.stringify(artwork_info);
-
-        // Update meta data with the given token ID
-        const gasValue = await instance721.methods.updateMetadata(artwork_id, metadata).estimateGas({
-            from: administrator
-        });
-        await instance721.methods.updateMetadata(artwork_id, metadata).send({
-            from: administrator,
-            gas: Math.floor(gasValue * 1.5)
-        });
+        // if (artwork_info != "") {
+        //     const metadata = JSON.stringify(artwork_info);
+        //     try {
+        //         // Update meta data with the given token ID
+        //         const gasValue = await instance721.methods.updateMetadata(artwork_id, metadata).estimateGas({
+        //             from: administrator
+        //         });
+        //         const updateResult = await instance721.methods.updateMetadata(artwork_id, metadata).send({
+        //             from: administrator,
+        //             gas: Math.floor(gasValue * 1.5)
+        //         });
+        //         return updateResult.transactionHash;
+        //     } catch(err) {
+        //         console.log("update artwork_info error as ", err);
+        //         return transaction_id;
+        //     }            
+        // }        
     }
 
     /**
      * This function also return a promise, need to be handle
      * return value: 0x0    if anything went wrong
      * return value: transactionHash value: if nothing wrong.
+     * artwork_info: is an object with type (string), loyalty (float [0-1]), status (string), artist(string) 
+     * let artwork_info = {
+     *       type: "painting",
+     *       artist: "Qin",
+     *       loyalty: 0.15,
+     *       status: "presenting",
+     *       price: 50.00,
+     *   };
+     * 
      * @param {*} buyer_address provided by user
      * @param {*} owner_address provided by user
      * @param {*} artwork_id    provided by user
      * @param {*} artwork_price provided by user
      */
-    const buy_artwork = async (buyer_address, owner_address, artwork_id, artwork_price) => {
+    const buy_artwork = async (buyer_address, password, owner_address, artwork_id, artwork_price) => {
 
         let transaction_id = 0x0;
-        let metadata;
-
-        // Retrieve artwork infomation to calculate commission
-        const trans_get_artwork_info = instance721.methods.referencedMetadata(artwork_id).call();
-        const trans_get_owner = instance721.methods.ownerOf(artwork_id).call();
-
-        try {
-            metadata = await trans_get_artwork_info;
-            const owner = await trans_get_owner;
-            if (owner !== owner_address) {
-                console.log("Owner mismatch contract record");
-                return transaction_id;
-            }
-        } catch (err) {
-            console.log("Failed to get artwork information");
+        if (!verify_artwork_owner(owner_address, artwork_id)) {
+            console.log("Mismatch owner_address or artwork does not exist");
             return transaction_id;
         }
-
+        // unlock the account for 60 seconds to perform the transaction
+        const unlockOwnerAccount = await unlock_account(owner_address, password, 60);
+        if (!unlockOwnerAccount) {
+            console.log("unlock accoung of owner err");
+            return transaction_id;
+        }
+        const unlockBuyerAccount = await unlock_account(buyer_address, password, 60);
+        if (!unlockBuyerAccount) {
+            console.log("unlock accoung of buyer err");
+            return transaction_id;
+        }
+        // Retrieve artwork infomation to calculate commission
+        const metadata = await instance721.methods.referencedMetadata(artwork_id).call();
         // Calculate commission
         artwork_info = JSON.parse(metadata);
-        const commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
-        const price = artwork_price - commission;
+        console.log("Artwork is " + artwork_info);
 
-        // Ask seller to approve contract ACG20 to transfer the specified artwork
-        const trans_approve_artwork = instance721.methods.approve(
-            address_20, artwork_id).send({
-            from: owner_address
-        });
-        try {
-            await trans_approve_artwork;
-        } catch (err) {
-            console.log("Failed on approve() from artwork seller");
-            return transaction_id;
+        // calculate commision
+        let commision;
+        if (!isNaN(artwork_info.loyalty)) {
+            commision = 0;
         }
+        commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
+        
+        const price = artwork_price - commission;       
 
         // Submit the purchase transaction
         try {
+            console.log("Start testing ...");
+            //await instance721.methods.allowance(buyer_address, address_20)
+            const buyer_balance = await instance20.methods.balanceOf(buyer_address).call();
+            console.log(buyer_address + " have balance of " + buyer_balance);
+            console.log(buyer_address + " spend " + (price+commission) + " to buy " + artwork_id + " from " + owner_address);
             const gasValue = await instance20.methods.approveAndCall(
                 owner_address, price, commission, artwork_id).estimateGas({
                 from: buyer_address
             });
+            console.log("estimate gas: " + gasValue);
             const receipt = await instance20.methods.approveAndCall(
                 owner_address, price, commission, artwork_id).send({
                     from: buyer_address,
                     gas: Math.floor(gasValue*1.5)
                 });
-            transaction_id = receipt.transactionHash;        
+            return receipt.transactionHash;        
         } catch (err) {
             console.log("Failed on approveAndCall() from buyer");
             return transaction_id;
         }
-        return transaction_id;
     }
 
     /**
@@ -291,19 +343,24 @@ const deployConf = require('../static/deployConf.json');
      * return value: 0x0    if anything went wrong
      * return value: transactionHash value, if nothing wrong.
      * @param {*} buyer_address provided by user
+     * @param {*} password      provided by user
      * @param {*} value         provided by user
      */
-    async function buy_token(buyer_address, value) {
+    async function buy_token(buyer_address, password, value) {
         let transaction_id = 0x0;   //default value
-        try {
-            const receipt = await instance20.methods.mint(buyer_address, value).send({
-                from: administrator
-            });
-            return receipt.transactionHash;
-        } catch(err) {
-            console.log("topup ACG20 token error ", err);
-            return transaction_id;
-        }       
+        // unlock the buyer account for 30 seconds to perform the transaction
+        const unlockAccount = await unlock_account(buyer_address, password, 30);
+        if (unlockAccount) {
+            try {
+                const receipt = await instance20.methods.mint(buyer_address, value).send({
+                    from: administrator
+                });
+                return receipt.transactionHash;
+            } catch(err) {
+                console.log("topup ACG20 token error ", err);
+                return transaction_id;
+            }  
+        }     
     }
 
     /**
@@ -322,6 +379,21 @@ const deployConf = require('../static/deployConf.json');
             console.log("Given artwork ID is not stored in the contract");
             return transaction_id;
         }
+        // unlock the account of buyer for 60 second
+        const unlockBuyerAccount = await unlock_account(buyer_address, password, 60);
+        if (!unlockBuyerAccount) {
+            console.log("unlock accoung of buyer err");
+            return transaction_id;
+        }
+
+        // then, owner approve for owner to freeze his token
+        const approveResult = await instance20.methods.approve(administrator, artwork_prize).send({
+            from: buyer_address,
+        })
+        if (!approveResult) {
+            console.log("buyer approval process for freezing tokens error as ");
+            return transaction_id;
+        }
         try {
             const gasValue = await instance20.methods.freeze(buyer_address, artwork_prize, artwork_id).estimateGas({
                 from: administrator
@@ -334,6 +406,9 @@ const deployConf = require('../static/deployConf.json');
             return receipt.transactionHash;
         } catch(err) {
             Console.log("Freezing token error as: ", err);
+            await instance20.methods.unfreeze(artwork_id).send({
+                from: administrator,
+            });
             return transaction_id;
         }        
     }
@@ -403,15 +478,34 @@ const deployConf = require('../static/deployConf.json');
     /**
      * The function to unlock an account when ever we need to make a transaction
      */
-    async function unlock_account(account_address, unlock_time) {
+    async function unlock_account(account_address, password, unlock_time) {
         let result = true;
         try {
-            await web3.eth.personal.unlockAccount(account_address, "Test@2018", unlock_time);
+            await web3.eth.personal.unlockAccount(account_address, password, unlock_time);
             var newBalance = await web3.eth.getBalance(account_address)
             console.log("balance of new account: ", newBalance);
         } catch(err) {
             result = false;
             console.log("Something wrong with unlock account as ", err);
+        }
+        return result;
+    }
+
+    /**
+     * Verify owner of an given artwork
+     */
+    async function verify_artwork_owner(owner_address, artwork_id) {
+        let result = true;
+        // Query owner according to token ID
+        try {
+            actual_owner_address = await instance721.methods.ownerOf(artwork_id).call();
+            if (owner_address != actual_owner_address) {
+                result = false;
+                console.log("mismatch owner_address of that artwork");
+            }
+        } catch(err) {
+            console.log("Artwork_id does not exist ", err);
+            result = false;
         }
         return result;
     }
