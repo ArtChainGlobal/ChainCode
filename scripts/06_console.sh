@@ -12,7 +12,7 @@ geth --datadir ~/node0 init genesis.json
 
 
 # 启动console获取enode信息
-geth --datadir ~/node0 --networkid 7890 --port 3000 console > tmp1 <<EOF
+geth --datadir ~/node0 --networkid 7777 --port 3000 console > tmp1 <<EOF
 admin.nodeInfo.enode
 EOF
 

@@ -12,13 +12,13 @@ sed -i '1,3d' IP.txt
 
 # creat supernode account
 geth --datadir node0 --port 3000 account new << EOF
-xxxxxx
-xxxxxx
+123
+123
 EOF
 
 
 # print password into files for further convience
-echo xxxxxx > ~/node0/password
+echo 123 > ~/node0/password
 
 
 # print created address into the files for further convience

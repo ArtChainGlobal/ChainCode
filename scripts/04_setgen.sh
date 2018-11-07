@@ -1,19 +1,33 @@
 #!/bin/bash
 
-scp ubuntu@13.238.184.xxx:/home/ubuntu/address.13.238.184.xxx ~/gopath/testsh/
-scp ubuntu@54.252.240.xxx:/home/ubuntu/address.54.252.240.xxx ~/gopath/testsh/
-scp ubuntu@13.239.27.xxx:/home/ubuntu/address.13.239.27.xxx ~/gopath/testsh/
-scp root@47.74.69.xxx:/root/address.47.74.69.xxx ~/gopath/testsh/
-scp root@47.74.70.xxx:/root/address.47.74.70.xxx ~/gopath/testsh/
-scp root@47.91.56.xxx:/root/address.47.91.56.xxx ~/gopath/testsh/ 
+#scp ubuntu@13.238.184.2:/home/ubuntu/address.13.238.184.2 ~/gopath/testsh/
+#scp ubuntu@54.252.240.251:/home/ubuntu/address.54.252.240.251 ~/gopath/testsh/
+#scp ubuntu@13.239.27.233:/home/ubuntu/address.13.239.27.233 ~/gopath/testsh/
+#scp root@47.74.69.177:/root/address.47.74.69.177 ~/gopath/testsh/
+#scp root@47.74.70.159:/root/address.47.74.70.159 ~/gopath/testsh/
+#scp root@47.91.56.32:/root/address.47.91.56.32 ~/gopath/testsh/ 
+
+#ip[0]=47.74.69.177
+#ip[1]=47.74.70.159
+#ip[2]=47.91.56.32
+#ip[3]=13.238.184.2
+#ip[4]=54.252.240.251
+#ip[5]=13.239.27.233
 
 
-ip[0]=47.74.69.xxx
-ip[1]=47.74.70.xxx
-ip[2]=47.91.56.xxx
-ip[3]=13.238.184.xxx
-ip[4]=54.252.240.xxx
-ip[5]=13.239.27.xxx
+scp ubuntu@52.65.76.142:/home/ubuntu/address.52.65.76.142 ~/gopath/testsh/
+scp ubuntu@13.210.167.55:/home/ubuntu/address.13.210.167.55 ~/gopath/testsh/
+scp ubuntu@13.236.44.25:/home/ubuntu/address.13.236.44.25 ~/gopath/testsh/
+scp root@47.91.40.55:/root/address.47.91.40.55 ~/gopath/testsh/
+scp root@47.74.70.195:/root/address.47.74.70.195 ~/gopath/testsh/
+scp root@47.91.47.9:/root/address.47.91.47.9 ~/gopath/testsh/ 
+
+ip[0]=47.91.40.55
+ip[1]=47.74.70.195
+ip[2]=47.91.47.9
+ip[3]=52.65.76.142
+ip[4]=13.210.167.55
+ip[5]=13.236.44.25
 
 
 cd ~/gopath/testsh
@@ -158,7 +172,7 @@ ${y[97]}
 ${y[98]}
 ${y[99]}
 
-7890
+7777
 2
 2
 genesis.json
