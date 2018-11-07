@@ -1,32 +1,34 @@
 const Web3 = require('web3');
+const ACG20 = require('../static/ACG20.json');
+const ACG721 = require('../static/ACG721.json');
+const deployConf = require('../static/deployConf.json');
 
-function ACGChainAPI() {
+// function ACGChainAPI() {
+    const rpc_provider = "http://47.91.56.32:32000";
+    let web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
 
-    let web3;
-    let administrator;
+    const address_20 = deployConf.acg20_address;
+    const address_721 = deployConf.acg721_address;
+    const interface_20 = JSON.parse(ACG20.abiString);
+    const interface_721 = JSON.parse(ACG721.abiString)
 
-    let contract20;
-    let contract721;
-
-    let address_20;
-    let address_721;
-
-    let interface_20;
-    let interface_721;
+    const instance20 = new web3.eth.Contract(interface_20, address_20);
+    const instance721 = new web3.eth.Contract(interface_721, address_721);
 
     const new_account_topup_value = 1e2;
     const post_artwork_incentive = 1e3;
+    const administrator = deployConf.administrator;
 
     async function _connect_to_chain() {
         const deployConf = require('../static/deployConf.json');
         // set the provider you want from Web3.providers
-        //web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
-        web3Obj = new Web3(new Web3.providers.WebsocketProvider(deployConf.server));
+        web3Obj = new Web3(new Web3.providers.HttpProvider(rpc_provider));
+        //web3Obj = new Web3(new Web3.providers.WebsocketProvider(deployConf.server));
         // Exception is thrown if the connection failed
         await web3Obj.eth.net.isListening();
 
         // Set administrator
-        admin = deployConf.administrator;
+        
         return [web3Obj, admin];
     }
 
@@ -105,7 +107,7 @@ function ACGChainAPI() {
         console.log("Connected to RPC server, set administrator to ", administrator, "...");
 
         // Retrieve deployed contract instances
-        [contract20, contract721] = await _retrieve_deployed_contracts();
+        [instance20, instance721] = await _retrieve_deployed_contracts();
 
         return web3;
     }
@@ -126,14 +128,14 @@ function ACGChainAPI() {
 
     async function simple_test_on_environment() {
         console.log("******** Simple test ********");
-        const name = await contract20.methods.name().call();
-        const owner = await contract721.methods.owner().call();
+        const name = await instance20.methods.name().call();
+        const owner = await instance721.methods.owner().call();
         console.log("Simple test: ACG20 name =", name);
         console.log("Simple test: Owner of ACG721 =", owner);
     }
     
     function get_contracts_instrance() {
-        return [contract20, contract721];
+        return [instance20, instance721];
     }
 
     /**
@@ -147,7 +149,7 @@ function ACGChainAPI() {
         var user = 0x0; //default value for new user;
         // Create a new account on the node
         try {
-            user_address = await web3.eth.personal.newAccount(password);
+            user_address = await web3.eth.personal.newAccount(password)
             // Top up some eth for new user
             await safeguard_account_balance(user_address);
         } catch(err) {
@@ -172,29 +174,35 @@ function ACGChainAPI() {
         // Generate meta data
         const metadata = JSON.stringify(artwork_info);
 
-        // Store 721 Token for user, because we don't know the size of
-        // meta data, so need first estimate required gas amount for the transaction
-        try {
-            const gasValue = await contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).estimateGas({
-                from: administrator
-            });
-            const trans_721_mint = contract721.methods.mintWithMetadata(user_address, artwork_id, metadata).send({
-                from: administrator,
-                gas: Math.floor(gasValue * 1.5)
-            });
-            // Store 20 Token as prize of posting artwork
-            const trans_20_mint = contract20.methods.mint(user_address, post_artwork_incentive).send({
-                from: administrator
-            });
-    
-            // Waiting for the operation on the chain
-            await trans_20_mint;
-            await trans_721_mint;
-        } catch(err) {
+        // unlock account for 1 minutes
+        const unlockAccount = await unlock_account(user_address, 60);
+        if (unlockAccount) {
+            // Store 721 Token for user, because we don't know the size of
+            // meta data, so need first estimate required gas amount for the transaction
+            try {
+                const gasValue = await instance721.methods.mintWithMetadata(user_address, artwork_id, metadata).estimateGas({
+                    from: administrator
+                });
+                const trans_721_mint = instance721.methods.mintWithMetadata(user_address, artwork_id, metadata).send({
+                    from: administrator,
+                    gas: Math.floor(gasValue * 1.5)
+                });
+                // Store 20 Token as prize of posting artwork
+                const trans_20_mint = instance20.methods.mint(user_address, post_artwork_incentive).send({
+                    from: administrator
+                });
+        
+                // Waiting for the operation on the chain
+                await trans_20_mint;
+                await trans_721_mint;
+            } catch(err) {
+                artwork_id = 0;
+                console.log("something wrong with topup ACG20 and ACG721 ", err);
+            }       
+        } else {
+            console.log("unlock account error");
             artwork_id = 0;
-            console.log("something wrong with topup ACG20 and ACG721 ", err);
-        }       
-
+        }
         return artwork_id;
     }
 
@@ -203,10 +211,10 @@ function ACGChainAPI() {
         const metadata = JSON.stringify(artwork_info);
 
         // Update meta data with the given token ID
-        const gasValue = await contract721.methods.updateMetadata(artwork_id, metadata).estimateGas({
+        const gasValue = await instance721.methods.updateMetadata(artwork_id, metadata).estimateGas({
             from: administrator
         });
-        await contract721.methods.updateMetadata(artwork_id, metadata).send({
+        await instance721.methods.updateMetadata(artwork_id, metadata).send({
             from: administrator,
             gas: Math.floor(gasValue * 1.5)
         });
@@ -227,8 +235,8 @@ function ACGChainAPI() {
         let metadata;
 
         // Retrieve artwork infomation to calculate commission
-        const trans_get_artwork_info = contract721.methods.referencedMetadata(artwork_id).call();
-        const trans_get_owner = contract721.methods.ownerOf(artwork_id).call();
+        const trans_get_artwork_info = instance721.methods.referencedMetadata(artwork_id).call();
+        const trans_get_owner = instance721.methods.ownerOf(artwork_id).call();
 
         try {
             metadata = await trans_get_artwork_info;
@@ -248,7 +256,7 @@ function ACGChainAPI() {
         const price = artwork_price - commission;
 
         // Ask seller to approve contract ACG20 to transfer the specified artwork
-        const trans_approve_artwork = contract721.methods.approve(
+        const trans_approve_artwork = instance721.methods.approve(
             address_20, artwork_id).send({
             from: owner_address
         });
@@ -261,11 +269,11 @@ function ACGChainAPI() {
 
         // Submit the purchase transaction
         try {
-            const gasValue = await contract20.methods.approveAndCall(
+            const gasValue = await instance20.methods.approveAndCall(
                 owner_address, price, commission, artwork_id).estimateGas({
                 from: buyer_address
             });
-            const receipt = await contract20.methods.approveAndCall(
+            const receipt = await instance20.methods.approveAndCall(
                 owner_address, price, commission, artwork_id).send({
                     from: buyer_address,
                     gas: Math.floor(gasValue*1.5)
@@ -288,7 +296,7 @@ function ACGChainAPI() {
     async function buy_token(buyer_address, value) {
         let transaction_id = 0x0;   //default value
         try {
-            const receipt = await contract20.methods.mint(buyer_address, value).send({
+            const receipt = await instance20.methods.mint(buyer_address, value).send({
                 from: administrator
             });
             return receipt.transactionHash;
@@ -309,17 +317,17 @@ function ACGChainAPI() {
     async function freeze_token(buyer_address, artwork_id, artwork_prize) {
         let transaction_id = 0x0;
         // Check artwork status is in auction
-        const artwork_info = await contract721.methods.referencedMetadata(artwork_id).call();
+        const artwork_info = await instance721.methods.referencedMetadata(artwork_id).call();
         if (artwork_info.length <= 0) {
             console.log("Given artwork ID is not stored in the contract");
             return transaction_id;
         }
         try {
-            const gasValue = await contract20.methods.freeze(buyer_address, artwork_prize, artwork_id).estimateGas({
+            const gasValue = await instance20.methods.freeze(buyer_address, artwork_prize, artwork_id).estimateGas({
                 from: administrator
             });
             // freeze buyer's ACG20 token
-            const receipt = await contract20.methods.freeze(buyer_address, artwork_prize, artwork_id).send({
+            const receipt = await instance20.methods.freeze(buyer_address, artwork_prize, artwork_id).send({
                 from: administrator,
                 gas: Math.floor(gasValue * 1.5)
             });    
@@ -343,13 +351,13 @@ function ACGChainAPI() {
         let artwork_info = "";      //default value for the artwork_info
         // Query owner according to token ID
         try {
-            owner_address = await contract721.methods.ownerOf(artwork_id).call();
+            owner_address = await instance721.methods.ownerOf(artwork_id).call();
         } catch(err) {
             console.log("mismatch artwork_id or it does not exist ", err);
         }
         
         try {
-            const metadataString = await contract721.methods.referencedMetadata(artwork_id).call();
+            const metadataString = await instance721.methods.referencedMetadata(artwork_id).call();
             artwork_info = JSON.parse(metadataString);
         } catch(err) {
             console.log("the artwork_id provided does not exist ", err);
@@ -367,16 +375,16 @@ function ACGChainAPI() {
         const type = "";
 
         // Query balance of token ACG721
-        const trans_query_balance_721 = contract721.methods.balanceOf(user_address).call();
+        const trans_query_balance_721 = instance721.methods.balanceOf(user_address).call();
         // Query balance of token ACG20
-        const trans_query_balance_20 = contract20.methods.balanceOf(user_address).call();
+        const trans_query_balance_20 = instance20.methods.balanceOf(user_address).call();
 
         // Wait for value of ACG721 balance
         const user_balance_acg721 = await trans_query_balance_721;
         const trans_query_artwork_list = [];
         // Query the artwork belonging to the user
         for (let artwork_index=0; artwork_index<user_balance_acg721; artwork_index++) {
-            trans_query_artwork_list[artwork_index] = contract721.methods.listOfOwnerTokens(user_address, artwork_index).call();
+            trans_query_artwork_list[artwork_index] = instance721.methods.listOfOwnerTokens(user_address, artwork_index).call();
         }
         // Wait for the return values
         const user_balance_acg20 = await trans_query_balance_20;
@@ -392,7 +400,23 @@ function ACGChainAPI() {
         return web3.eth.getTransaction(transaction_id);
     }
 
-    return {
+    /**
+     * The function to unlock an account when ever we need to make a transaction
+     */
+    async function unlock_account(account_address, unlock_time) {
+        let result = true;
+        try {
+            await web3.eth.personal.unlockAccount(account_address, "Test@2018", unlock_time);
+            var newBalance = await web3.eth.getBalance(account_address)
+            console.log("balance of new account: ", newBalance);
+        } catch(err) {
+            result = false;
+            console.log("Something wrong with unlock account as ", err);
+        }
+        return result;
+    }
+
+    module.exports = {
         // ----------------------------
         // Auxiliary functions:
         // ----------------------------
@@ -414,6 +438,4 @@ function ACGChainAPI() {
         check_transaction: check_transaction
         // All those above API are promises, need to handle as promises.
     };
-}
-
-module.exports = ACGChainAPI;
+// }

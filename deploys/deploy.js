@@ -15,8 +15,8 @@ async function connect_to_chain(rpc_provider) {
     } else {
         // set the provider you want from Web3.providers
         console.log("API: Set a new web3 provider ...");
-        //web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
-        web3 = new Web3(new Web3.providers.WebsocketProvider(rpc_provider));
+        web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
+        //web3 = new Web3(new Web3.providers.WebsocketProvider(rpc_provider));
     }
     // Exception is thrown if the connection failed
     await web3.eth.net.isListening();
@@ -39,32 +39,32 @@ async function deploy_new_contracts(rpc_provider) {
     });
 
     // Estimate gas required to deploy the contracts
-    const trans_estimate_gas_20 = instance20.deploy().estimateGas();
-    const trans_estimate_gas_721 = instance721.deploy().estimateGas();
-    const gas_acg20 = await trans_estimate_gas_20;
-    const gas_acg721 = await trans_estimate_gas_721;
+    const trans_estimate_gas_20 = await instance20.deploy().estimateGas();
+    const trans_estimate_gas_721 = await instance721.deploy().estimateGas();
+    // const gas_acg20 = await trans_estimate_gas_20;
+    // const gas_acg721 = await trans_estimate_gas_721;
 
     // Deploy the contracts
-    const trans_deploy_acg20 = instance20.deploy().send({
+    const newInstance20 = await instance20.deploy().send({
         from: administrator,
-        gas: Math.floor(gas_acg20 * 1.5)
+        gas: Math.floor(trans_estimate_gas_20 * 1.5)
     });
-    const trans_deploy_acg721 = instance721.deploy().send({
+    const newInstance721 = await instance721.deploy().send({
         from: administrator,
-        gas: Math.floor(gas_acg721 * 1.5)
+        gas: Math.floor(trans_estimate_gas_721 * 1.5)
     });
-    newInstance20 = await trans_deploy_acg20;
-    newInstance721 = await trans_deploy_acg721;
+    // newInstance20 = await trans_deploy_acg20;
+    // newInstance721 = await trans_deploy_acg721;
 
     // Register each other for subsequent transactions
-    const trans_register_20 = newInstance20.methods.registerACG721Contract(newInstance721.options.address).send({
+    await newInstance20.methods.registerACG721Contract(newInstance721.options.address).send({
         from: administrator
     });
-    const trans_register_721 = newInstance721.methods.registerACG20Contract(newInstance20.options.address).send({
+    await newInstance721.methods.registerACG20Contract(newInstance20.options.address).send({
         from: administrator
     });
-    await trans_register_20;
-    await trans_register_721;
+    // await trans_register_20;
+    // await trans_register_721;
 
     console.log("Contracts deployed successfully ...\nACG20 is deployed at: ",
     newInstance20.options.address,
@@ -78,7 +78,7 @@ async function deploy_new_contracts(rpc_provider) {
     };
 
     const confString = JSON.stringify(deployedConfig);
-    fs.writeFileSync("./static/deployConf.json", confString);
+    await fs.writeFileSync("./static/deployConf.json", confString);
     console.log("Write deployment result to file ...");
 }
 
