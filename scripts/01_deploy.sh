@@ -6,11 +6,11 @@ rm address
 
 for ((i=0; i < 100; i++)); do
 
-# setup 100 pre-fund new accounts and input an interactive password 'xxxxxx'
+# setup 100 pre-fund new accounts and input an interactive password '123'
 cd ~/gopath/testsh/
 geth --datadir ./node${i} account new << EOF
-xxxxxx
-xxxxxx
+123
+123
 EOF
 
 # print the addresses into addr file with prefix '0x'
@@ -20,6 +20,6 @@ echo ${addr:37:40} >> ~/gopath/testsh/address
 
 
 # print password into files for further convience
-echo xxxxxx > ~/gopath/testsh/node$i/password
+echo 123 > ~/gopath/testsh/node$i/password
 
 done

@@ -3,13 +3,20 @@
 from fabric.api import * 
 from fabric.api import local,cd,run,env
  
+#env.hosts=['47.74.69.177','47.74.70.159','root@47.91.56.32'] #ssh要用到的参数
+#env.user='root'
 
-env.password='xxx'
+env.password='xsdflkjh'
+#env.roledefs = {
+#            'ALIserver': ['root@47.74.69.177','root@47.74.70.159','root@47.91.56.32'],
+#            'AWSserver': ['ubuntu@13.238.184.2','ubuntu@54.252.240.251','ubuntu@13.239.27.233']
+#            } 
+
 env.roledefs = {
-            'ALIserver': ['root@47.74.69.xxx','root@47.74.70.xxx','root@47.91.56.xxx'],
-            'AWSserver': ['ubuntu@13.238.184.xxx','ubuntu@54.252.240.xxx','ubuntu@13.239.27.xxx']
+            'ALIserver': ['root@47.91.40.55','root@47.74.70.195','root@47.91.47.9'],
+            'AWSserver': ['ubuntu@52.65.76.142','ubuntu@13.210.167.55','ubuntu@13.236.44.25']
             }
- 
+            
 
 #@roles('localPC')
 def loc00_01():
