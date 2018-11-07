@@ -8,15 +8,18 @@ const contract721 = {instance: ""};
 let web3;
 let administrator;
 
-async function connect_to_chain(rpc_provider) {
+async function connect_to_chain(rpc_provider, protocol) {
     if (typeof web3 !== 'undefined') {
         console.log("API: Connect to an existing web3 provider ...");
         web3 = new Web3(web3.currentProvider);
     } else {
         // set the provider you want from Web3.providers
         console.log("API: Set a new web3 provider ...");
-        //web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
-        web3 = new Web3(new Web3.providers.WebsocketProvider(rpc_provider));
+        if (protocol == "http") {
+            web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
+        } else if (protocol == "ws") {
+            web3 = new Web3(new Web3.providers.WebsocketProvider(rpc_provider));
+        }
     }
     // Exception is thrown if the connection failed
     await web3.eth.net.isListening();
@@ -26,9 +29,9 @@ async function connect_to_chain(rpc_provider) {
     return web3;
 }
 
-async function deploy_new_contracts(rpc_provider) {
+async function deploy_new_contracts(rpc_provider, protocol = "http") {
     // Connect to private chain
-    await connect_to_chain(rpc_provider);
+    await connect_to_chain(rpc_provider, protocol);
 
     // Generate new contract objects
     instance20 = new web3.eth.Contract(JSON.parse(ACG20.abiString), null, {

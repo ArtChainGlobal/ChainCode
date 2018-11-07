@@ -19,11 +19,14 @@ function ACGChainAPI() {
     const new_account_topup_value = 1e2;
     const post_artwork_incentive = 1e3;
 
-    async function _connect_to_chain() {
+    async function _connect_to_chain(protocol) {
         const deployConf = require('../static/deployConf.json');
         // set the provider you want from Web3.providers
-        //web3 = new Web3(new Web3.providers.HttpProvider(rpc_provider));
-        web3Obj = new Web3(new Web3.providers.WebsocketProvider(deployConf.server));
+        if (protocol == "http") {
+            web3Obj = new Web3(new Web3.providers.HttpProvider(deployConf.server));
+        } else if (protocol == "ws") {
+            web3Obj = new Web3(new Web3.providers.WebsocketProvider(deployConf.server));
+        }
         // Exception is thrown if the connection failed
         await web3Obj.eth.net.isListening();
 
@@ -93,10 +96,10 @@ function ACGChainAPI() {
         return web3.eth.personal.unlockAccount(address, password, 60*60);
     }
 
-    async function prepare() {
+    async function prepare(protocol = "http") {
 
         // Connect to private chain
-        [web3, administrator] = await _connect_to_chain();
+        [web3, administrator] = await _connect_to_chain(protocol);
         console.log("Connected to RPC server, set administrator to ", administrator, "...");
 
         // Retrieve deployed contract instances
