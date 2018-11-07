@@ -1,19 +1,26 @@
 #!/bin/bash
 
-scp ubuntu@13.238.184.2:/home/ubuntu/tmp.13.238.184.2 ~/gopath/testsh/
-scp ubuntu@54.252.240.251:/home/ubuntu/tmp.54.252.240.251 ~/gopath/testsh/
-scp ubuntu@13.239.27.233:/home/ubuntu/tmp.13.239.27.233 ~/gopath/testsh/
-scp root@47.74.69.177:/root/tmp.47.74.69.177 ~/gopath/testsh/
-scp root@47.74.70.159:/root/tmp.47.74.70.159 ~/gopath/testsh/
-scp root@47.91.56.32:/root/tmp.47.91.56.32 ~/gopath/testsh/ 
+#scp ubuntu@13.238.184.2:/home/ubuntu/tmp.13.238.184.2 ~/gopath/testsh/
+#scp ubuntu@54.252.240.251:/home/ubuntu/tmp.54.252.240.251 ~/gopath/testsh/
+#scp ubuntu@13.239.27.233:/home/ubuntu/tmp.13.239.27.233 ~/gopath/testsh/
+#scp root@47.74.69.177:/root/tmp.47.74.69.177 ~/gopath/testsh/
+#scp root@47.74.70.159:/root/tmp.47.74.70.159 ~/gopath/testsh/
+#scp root@47.91.56.32:/root/tmp.47.91.56.32 ~/gopath/testsh/ 
+
+scp ubuntu@52.65.76.142:/home/ubuntu/address.52.65.76.142 ~/gopath/testsh/
+scp ubuntu@13.210.167.55:/home/ubuntu/address.13.210.167.55 ~/gopath/testsh/
+scp ubuntu@13.236.44.25:/home/ubuntu/address.13.236.44.25 ~/gopath/testsh/
+scp root@47.91.40.55:/root/address.47.91.40.55 ~/gopath/testsh/
+scp root@47.74.70.195:/root/address.47.74.70.195 ~/gopath/testsh/
+scp root@47.91.47.9:/root/address.47.91.47.9 ~/gopath/testsh/ 
 
 
-v[0]=$(cat tmp.13.238.184.2)
-v[1]=$(cat tmp.54.252.240.251)
-v[2]=$(cat tmp.13.239.27.233)
-v[3]=$(cat tmp.47.74.69.177)
-v[4]=$(cat tmp.47.74.70.159)
-v[5]=$(cat tmp.47.91.56.32)
+v[0]=$(cat tmp.52.65.76.142)
+v[1]=$(cat tmp.13.210.167.55)
+v[2]=$(cat tmp.13.236.44.25)
+v[3]=$(cat tmp.47.91.40.55)
+v[4]=$(cat tmp.47.74.70.195)
+v[5]=$(cat tmp.47.91.47.9)
 
 # create static-nodes.json
 echo  "[" >> static1.json
