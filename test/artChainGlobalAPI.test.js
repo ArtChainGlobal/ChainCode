@@ -1,8 +1,6 @@
 const assert = require('assert');
-const AcgApi = require('../api/artChainGlobalAPI.js');
+const acgApi = require('../api/artChainGlobalAPI.js');
 const SIMPLE_TEST_ON_ENVIRONMENT = false;
-const acgApi = AcgApi();
-let web3;
 
 describe('API basic test framework', async function () {
 
@@ -15,6 +13,8 @@ describe('API basic test framework', async function () {
     let artist;
     let artwork_id_sold;
     let collector;
+    let web3;
+    const universal_password = "password";
     
     before ("Setup test environment step by step", async function () {
         // Set timeout
@@ -24,7 +24,7 @@ describe('API basic test framework', async function () {
         // ----------------------------------------------------------
         // Setup environment
         // ----------------------------------------------------------
-        web3 = await acgApi.prepare();
+        web3 = acgApi.prepare();
 
         // ----------------------------------------------------------
         // Prepare a set of testing accounts by either:
@@ -67,7 +67,7 @@ describe('API basic test framework', async function () {
 
         // Store new user address to the contract
         for (let i=0; i<user_number; i++) {
-            trans_add_new_user[i] = acgApi.add_new_user("password");
+            trans_add_new_user[i] = acgApi.add_new_user(universal_password);
         }
         // Expect the operation succeeded
         for (let i=0; i<user_number; i++) {
@@ -101,6 +101,7 @@ describe('API basic test framework', async function () {
             "New user's balance of ACG721 token should be zero");
         }
     });
+
     it('Test API: post_new_artwork', async () => {
         const artwork_list = [];
         const artwork_number = 5;
@@ -127,7 +128,7 @@ describe('API basic test framework', async function () {
             // Post a new artwork, it will:
             // - Add a new 721 token for user
             // - Add amount of 20 token as incentive
-            trans_post_new_artwork[i] = acgApi.post_new_artwork(artist, artwork_list[i]); 
+            trans_post_new_artwork[i] = acgApi.post_new_artwork(artist, universal_password, artwork_list[i]); 
         }
 
         // Wait for the result
@@ -159,14 +160,14 @@ describe('API basic test framework', async function () {
                 "artist":"Lin Yang",
                 "loyalty":"0.1",
                 "status":"private",
-                "prize":"10000"  
+                "prize":"10000"
             };
             await acgApi.update_artwork(updated_artwork_id, JSON.stringify(updated_info));
             const updated_metadata = await acg721Inst.methods.referencedMetadata(updated_artwork_id).call();
             artwork_info_after = JSON.parse(updated_metadata);
             //assert.equal(artwork_info_after.status, "private", "Artwork status should be changed");
         });
-
+/*
         it('Test API: buy_token', async () => {
 
             // Obtain chain status
@@ -313,5 +314,6 @@ describe('API basic test framework', async function () {
                 transaction = await trans;
                 //console.log(transaction);
             });
-        });      
+        });
+        */
 });
