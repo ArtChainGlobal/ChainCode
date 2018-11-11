@@ -4,3 +4,4 @@ node_modules
 testnet
 .vscode
 nohup.out
+app/node_modules

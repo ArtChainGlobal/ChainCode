@@ -151,9 +151,7 @@ async function add_new_user(password) {
     let user_address = 0x0; //default value for new user;
     // Create a new account on the node
     try {
-        user_address = await web3.eth.personal.newAccount(password, {
-            from: administrator
-        });
+        user_address = await web3.eth.personal.newAccount(password);
         // Top up some eth for new user
         await safeguard_account_balance(user_address);
     } catch(err) {
@@ -248,23 +246,23 @@ async function update_artwork(owner_address, password, artwork_id, artwork_info,
         }
     }
     // Generate meta data
-    // if (artwork_info != "") {
-    //     const metadata = JSON.stringify(artwork_info);
-    //     try {
-    //         // Update meta data with the given token ID
-    //         const gasValue = await instance721.methods.updateMetadata(artwork_id, metadata).estimateGas({
-    //             from: administrator
-    //         });
-    //         const updateResult = await instance721.methods.updateMetadata(artwork_id, metadata).send({
-    //             from: administrator,
-    //             gas: Math.floor(gasValue * 1.5)
-    //         });
-    //         return updateResult.transactionHash;
-    //     } catch(err) {
-    //         console.log("update artwork_info error as ", err);
-    //         return transaction_id;
-    //     }            
-    // }        
+    if (artwork_info != "") {
+        const metadata = JSON.stringify(artwork_info);
+        try {
+            // Update meta data with the given token ID
+            const gasValue = await instance721.methods.updateMetadata(artwork_id, metadata).estimateGas({
+                from: administrator
+            });
+            const updateResult = await instance721.methods.updateMetadata(artwork_id, metadata).send({
+                from: administrator,
+                gas: Math.floor(gasValue * 1.5)
+            });
+            return updateResult.transactionHash;
+        } catch(err) {
+            console.log("update artwork_info error as ", err);
+            return transaction_id;
+        }            
+    }        
 }
 
 /**
@@ -345,7 +343,7 @@ const buy_artwork = async (buyer_address, password, owner_address, artwork_id, a
 async function buy_token(buyer_address, password, value) {
     let transaction_id = 0x0;   //default value
     // unlock the buyer account for 30 seconds to perform the transaction
-    const unlockAccount = await unlock_account(buyer_address, password, 30);
+    const unlockAccount = await unlock_account(buyer_address, password, 2);
     if (unlockAccount) {
         try {
             const receipt = await instance20.methods.mint(buyer_address, value).send({
@@ -367,7 +365,7 @@ async function buy_token(buyer_address, password, value) {
  * @param {*} artwork_id    provided by user
  * @param {*} artwork_prize provided by user
  */
-async function freeze_token(buyer_address, artwork_id, artwork_prize) {
+async function freeze_token(buyer_address, password, artwork_id, artwork_prize) {
     let transaction_id = 0x0;
     // Check artwork status is in auction
     const artwork_info = await instance721.methods.referencedMetadata(artwork_id).call();
@@ -376,13 +374,13 @@ async function freeze_token(buyer_address, artwork_id, artwork_prize) {
         return transaction_id;
     }
     // unlock the account of buyer for 60 second
-    const unlockBuyerAccount = await unlock_account(buyer_address, password, 60);
+    const unlockBuyerAccount = await unlock_account(buyer_address, password, 11);
     if (!unlockBuyerAccount) {
         console.log("unlock accoung of buyer err");
         return transaction_id;
     }
 
-    // then, owner approve for owner to freeze his token
+    // then, buyer approve for owner to freeze his token
     const approveResult = await instance20.methods.approve(administrator, artwork_prize).send({
         from: buyer_address,
     })
@@ -401,10 +399,10 @@ async function freeze_token(buyer_address, artwork_id, artwork_prize) {
         });    
         return receipt.transactionHash;
     } catch(err) {
-        Console.log("Freezing token error as: ", err);
-        await instance20.methods.unfreeze(artwork_id).send({
-            from: administrator,
-        });
+        console.log("Freezing token error as: ", err);
+        // await instance20.methods.unfreeze(artwork_id).send({
+        //     from: administrator,
+        // });
         return transaction_id;
     }        
 }
@@ -472,13 +470,18 @@ async function check_transaction(transaction_id) {
 }
 
 /**
- * The function to unlock an account when ever we need to make a transaction
+ * This function return a promise
+ * use to unlock the account whenever we need a transaction on the account
+ * @param {*} account_address provided by user
+ * @param {*} password        provided by user
+ * @param {*} unlock_time     provided by admin
  */
 async function unlock_account(account_address, password, unlock_time) {
     let result = true;
     try {
+        console.log(`unlocking account ${account_address} ...`);
         await web3.eth.personal.unlockAccount(account_address, password, unlock_time);
-        var newBalance = await web3.eth.getBalance(account_address)
+        // var newBalance = await web3.eth.getBalance(account_address)
     } catch(err) {
         result = false;
         console.log("Something wrong with unlock account as ", err);
@@ -505,6 +508,32 @@ async function verify_artwork_owner(owner_address, artwork_id) {
     return result;
 }
 
+/**
+ * 
+ * @param {*} artwork_id proficed by user to get the hieghest bidder currently
+ */
+async function get_high_bidder(artwork_id) {
+    let highest_bidder = 0x0;
+    let hieghest_bid = 0;
+    // verify if this artwork is genuin
+    const verifyArtwork = await check_artwork(artwork_id);
+    if (verifyArtwork[0] != 0x0) {
+        highest_bidder = await instance20.methods.highestBidder(artwork_id).call();
+        hieghest_bid = await instance20.methods.highestBid(artwork_id).call();
+    }
+    return [highest_bidder, hieghest_bid];
+}
+
+
+async function lockAccount(account) {
+    try {
+        await web3.eth.personal.lockAccount(account);
+        console.log(`lock account ${account} successfully`);
+    } catch(err) {
+        console.log(`lock account ${account} failed`);
+    }
+}
+
 module.exports = {
     // ----------------------------
     // Auxiliary functions:
@@ -513,6 +542,9 @@ module.exports = {
     safeguard_account_balance: safeguard_account_balance,
     get_contracts_instrance: get_contracts_instrance,
     simple_test_on_environment: simple_test_on_environment,
+    get_high_bidder: get_high_bidder,
+    lockAccount: lockAccount,
+    unlock_account: unlock_account,
     // ----------------------------
     // Standard API definition:
     // ----------------------------
@@ -524,6 +556,7 @@ module.exports = {
     freeze_token: freeze_token,
     check_artwork: check_artwork,
     check_user: check_user,
-    check_transaction: check_transaction
+    check_transaction: check_transaction,   
+    finalize_auction: finalize_auction,     //new interface to simplize auction payment
     // All those above API are promises, need to handle as promises.
 };

@@ -29,7 +29,7 @@ async function connect_to_chain(rpc_provider, protocol) {
     return web3;
 }
 
-async function deploy_new_contracts(rpc_provider, protocol = "http") {
+async function deploy_new_contracts(rpc_provider, protocol) {
     // Connect to private chain
     await connect_to_chain(rpc_provider, protocol);
 
