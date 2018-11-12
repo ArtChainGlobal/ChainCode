@@ -186,6 +186,11 @@ contract('API Support: freeze_token()', function(accounts) {
   it("freeze() will reduce user balance but won't change total supply", async () => {
     bidForArt1 = 1e3;
     bidderForArt1 = accounts[1];
+
+    // Buyer need approve his token to be frozen by administrator beforehead
+
+    await acg20Inst.approve(admin, bidForArt1, {from: bidderForArt1});
+
     await acg20Inst.freeze(bidderForArt1, bidForArt1, artwork1, {from: admin});
     userBalance[bidderForArt1] -= bidForArt1;
 
@@ -201,6 +206,7 @@ contract('API Support: freeze_token()', function(accounts) {
     bidForArt1 = 2e3;
     bidderForArt1 = accounts[2];
 
+    await acg20Inst.approve(admin, bidForArt1, {from: bidderForArt1});
     await acg20Inst.freeze(bidderForArt1, bidForArt1, artwork1, {from: admin});
     userBalance[prevBidderForArt1] += prevBidForArt1;
     userBalance[bidderForArt1] -= bidForArt1;
@@ -212,6 +218,7 @@ contract('API Support: freeze_token()', function(accounts) {
     let prevBidForArt1 = bidForArt1;
     bidForArt1 = 5e3;
 
+    await acg20Inst.approve(admin, bidForArt1, {from: bidderForArt1});
     await acg20Inst.freeze(bidderForArt1, bidForArt1, artwork1, {from: admin});
     userBalance[bidderForArt1] += prevBidForArt1;
     userBalance[bidderForArt1] -= bidForArt1;
@@ -222,6 +229,7 @@ contract('API Support: freeze_token()', function(accounts) {
   it("User can bid for more than one artwork at the same time", async () => {
     bidderForArt2 = bidderForArt1;
     bidForArt2 = 2e3;
+    await acg20Inst.approve(admin, bidForArt2, {from: bidderForArt2});
     await acg20Inst.freeze(bidderForArt2, bidForArt2, artwork2, {from: admin});
     userBalance[bidderForArt2] -= bidForArt2;
 

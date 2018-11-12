@@ -249,16 +249,19 @@ contract ACG20 is StandardERC20 {
 	*/
     function freeze(address _from, uint256 _amount, uint256 _artworkId) public onlyOwner {
         require(highestBid[_artworkId] < _amount, "Invalid operation: new bid should be greater than previous");
+
+        // First unfreeze tokens for current bidder (might be same with _from)
+        unfreeze(_artworkId);
+        
         // The balance of new bidder should be greater than the bid
         // If the statement failed here, unfreeze operation will be reverted
         require(balances[_from] >= _amount, "User's bid amount exceeds his balance");
+
         // require the _from approve for freezing his amount of token to the owner
-        require(allowance(_from, owner) >= _amount);
-        // First unfreeze tokens for current bidder (might be same with _from)
-        unfreeze(_artworkId);
+        require(_amount <= allowed[_from][owner], "Sender must have approved larger amount to the delegator");
         // Freeze tokens from the account of the new bidder
         balances[_from] = balances[_from].sub(_amount);
-
+        allowed[_from][owner] = allowed[_from][owner].sub(_amount);
         // Update bid and bidder
         highestBidder[_artworkId] = _from;
         highestBid[_artworkId] = _amount;
