@@ -164,6 +164,8 @@ contract ACG20 is StandardERC20 {
 
             // Withdraw the frozen tokens to bidder's account
             balances[_from] = balances[_from].add(highestBid[_artworkId]);
+
+            emit Unfreeze(_from, _value, _artworkId);
             // Reset bid and bidder
             delete highestBidder[_artworkId];
             delete highestBid[_artworkId];
