@@ -23,10 +23,12 @@ contract StandardERC721 {
     mapping(uint => uint) internal tokenIndexInOwnerArray;
     // Approval mapping
     mapping(uint => address) internal approvedAddressToTransferTokenId;
+    // Mapping from owner to operator approvals
+    mapping (address => mapping (address => bool)) private operatorApprovals;
 
     event Transfer(address indexed _from, address indexed _to, uint256 _tokenId);
     event Approval(address indexed _owner, address indexed _approved, uint256 _tokenId);
-    event ApprovalForAll(address indexed _owner, address indexed _operator, bool _approved);
+    event ApprovalForAll(address indexed _owner, address indexed _to, bool _approved);
 
     modifier onlyExtantToken(uint _tokenId) {
         require(ownerOf(_tokenId) != address(0), "Token doesn't exist");
@@ -50,8 +52,8 @@ contract StandardERC721 {
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
     function transferFrom(address _from, address _to, uint256 _tokenId) public onlyExtantToken(_tokenId) {
-        require(approvedAddressToTransferTokenId[_tokenId] == msg.sender, "Only approved address is able of transfering the token");
-        require(ownerOf(_tokenId) == _from, "Sender must be the owner of the token");
+        require(_isApprovedOrOwner(msg.sender, _tokenId), "Sender must be approved or authorized");
+        require(ownerOf(_tokenId) == _from, "Must transfer the token from the owner address");
         require(_to != address(0), "Receiver address should not be zero");
 
         _clearApprovalAndTransfer(_from, _to, _tokenId);
@@ -63,13 +65,46 @@ contract StandardERC721 {
     // @dev Grants approval for address _to to take possession of the NFT with ID _tokenId.
     function approve(address _to, uint _tokenId) public onlyExtantToken(_tokenId)
     {
-        require(msg.sender == ownerOf(_tokenId), "Sender must be the owner of the token");
+        require(msg.sender == ownerOf(_tokenId) || isApprovedForAll(ownerOf(_tokenId), msg.sender), "Sender must be the owner or authorized account");
         require(msg.sender != _to, "Sender and receiver should be different");
 
         if (approvedAddressToTransferTokenId[_tokenId] != address(0) || _to != address(0)) {
             approvedAddressToTransferTokenId[_tokenId] = _to;
             emit Approval(msg.sender, _to, _tokenId);
         }
+    }
+
+    /// @notice Enable or disable approval for a third party ("operator") to manage
+    ///  all of `msg.sender`'s assets
+    /// @dev Emits the ApprovalForAll event. The contract MUST allow
+    ///  multiple operators per owner.
+    /// @param _to Address to add to the set of authorized operators
+    /// @param _approved True if the operator is approved, false to revoke approval
+    function setApprovalForAll(address _to, bool _approved) public {
+        require(_to != msg.sender, "Sender need not approve himself");
+        operatorApprovals[msg.sender][_to] = _approved;
+        emit ApprovalForAll(msg.sender, _to, _approved);
+    }
+
+    /// @notice Get the approved address for a single NFT
+    /// @dev Throws if `_tokenId` is not a valid NFT.
+    /// @param _tokenId The NFT to find the approved address for
+    /// @return The approved address for this NFT, or the zero address if there is none
+    function getApproved(uint256 _tokenId) public view onlyExtantToken(_tokenId) returns (address) {
+        return approvedAddressToTransferTokenId[_tokenId];
+    }
+
+    /// @notice Query if an address is an authorized operator for another address
+    /// @param _owner The address that owns the NFTs
+    /// @param _operator The address that acts on behalf of the owner
+    /// @return True if `_operator` is an approved operator for `_owner`, false otherwise
+    function isApprovedForAll(address _owner, address _operator) public view returns (bool) {
+        return operatorApprovals[_owner][_operator];
+    }
+
+    function _isApprovedOrOwner(address _spender, uint256 _tokenId) internal view returns (bool) {
+        address owner = ownerOf(_tokenId);
+        return (_spender == owner || getApproved(_tokenId) == _spender || isApprovedForAll(owner, _spender));
     }
 
     function _clearApprovalAndTransfer(address _from, address _to, uint _tokenId) internal
@@ -226,6 +261,7 @@ contract ACG721 is StandardERC721 {
     function transfer(address _to, uint _tokenId) public onlyExtantToken (_tokenId)
     {
         require(ownerOf(_tokenId) == msg.sender, "Sender should be the owner of the token");
+
         require(_to != address(0), "Receiver address should not be zero"); 
 
         _clearApprovalAndTransfer(msg.sender, _to, _tokenId);
