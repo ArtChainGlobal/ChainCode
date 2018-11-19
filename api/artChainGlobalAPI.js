@@ -557,6 +557,5 @@ module.exports = {
     check_artwork: check_artwork,
     check_user: check_user,
     check_transaction: check_transaction,   
-    finalize_auction: finalize_auction,     //new interface to simplize auction payment
     // All those above API are promises, need to handle as promises.
 };
