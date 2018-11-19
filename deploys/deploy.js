@@ -54,7 +54,6 @@ async function deploy_new_contracts(rpc_provider, protocol) {
         from: administrator,
         gas: Math.floor(trans_estimate_gas_721 * 1.5)
     });
-    console.log("Now raw contracts are deployed, with address " + raw20New.options.address + " and " + raw721New.options.address);
 
     ///////////////////////////////////////////////////////////
     // Deploy upgradable proxies
@@ -88,10 +87,11 @@ async function deploy_new_contracts(rpc_provider, protocol) {
     instance20.options.address,
     "\nACG721 is deployed at: ", instance721.options.address);
 
-    await instance20.methods.transferOwnership(administrator).send({
+    // Initialize contract status on a 'blank' storager of the proxy
+    await instance20.methods.initializer().send({
         from: administrator
     });
-    await instance721.methods.transferOwnership(administrator).send({
+    await instance721.methods.initializer().send({
         from: administrator
     });
 

@@ -113,9 +113,9 @@ contract StandardERC20 {
  * 
  */
 contract ACG20 is StandardERC20 {
-    string public name = "ArtChain Global Token 20";
-    string public symbol = "ACG20";
-    uint8 public decimals = 2;
+    string public name;
+    string public symbol;
+    uint8 public decimals;
 
     address public owner;
     address public acg721Contract;
@@ -133,10 +133,20 @@ contract ACG20 is StandardERC20 {
     event RegisterACG721Contract(address indexed to);
 
     /**
-     * @dev Constructor. sets the original `owner` of the contract to the sender account.
-     */
-    constructor() public {
+	* @dev The initializer function is used instead of constructor just because the contract
+    * is expected to be deployed in unstructured upgradable proxy pattern, so it only plays 
+    * a implemenation of the logic. The proxy whereby all data is stored proactically has no 
+    * chance to call up a constructor for initializing work.
+    * A more sophisticated solution is by using an `initializer contract`, as introduced in 
+    * https://github.com/zeppelinos/labs/tree/master/initializer_contracts
+    */
+    function initializer() public {
+        require(owner == address(0), "Initializer function is only called before contract has no owner");
+        name = "ArtChain Global Token 20";
+        symbol = "ACG20";
+        decimals = 2;
         owner = msg.sender;
+        emit OwnershipTransferred(address(0), msg.sender);
     }
 
    	/**
@@ -187,10 +197,7 @@ contract ACG20 is StandardERC20 {
 	* @dev Allows the current contract owner to transfer control of the contract to a new Owner.
 	* @param newOwner The address to transfer ownership to.
 	*/
-    function transferOwnership(address newOwner) public {
-        if (owner != address(0)) {
-            require(msg.sender == owner);
-        }
+    function transferOwnership(address newOwner) public onlyOwner {
         require(newOwner != address(0), "New owmer must have a non-zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;

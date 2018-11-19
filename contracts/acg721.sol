@@ -178,11 +178,18 @@ contract ACG721 is StandardERC721 {
         _;
     }
 
-	/**
-    * @dev Constructor, sets the original `owner` of the contract to the sender account.
+    /**
+	* @dev The initializer function is used instead of constructor just because the contract
+    * is expected to be deployed in unstructured upgradable proxy pattern, so it only plays 
+    * a implemenation of the logic. The proxy whereby all data is stored proactically has no 
+    * chance to call up a constructor for initializing work.
+    * A more sophisticated solution is by using an `initializer contract`, as introduced in 
+    * https://github.com/zeppelinos/labs/tree/master/initializer_contracts
     */
-    constructor() public {
+    function initializer() public {
+        require(owner == address(0), "Initializer function is only called before contract has no owner");
         owner = msg.sender;
+        emit OwnershipTransferred(address(0), msg.sender);
     }
 
     function _insertTokenMetadata(uint _tokenId, string _metadata) internal
@@ -207,10 +214,7 @@ contract ACG721 is StandardERC721 {
 	* @dev Allows the current contract owner to transfer control of the contract to a new Owner.
 	* @param newOwner The address to transfer ownership to.
 	*/
-    function transferOwnership(address newOwner) public {
-        if (owner != address(0)) {
-            require(msg.sender == owner);
-        }
+    function transferOwnership(address newOwner) public onlyOwner {
         require(newOwner != address(0), "New owmer must have a non-zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
