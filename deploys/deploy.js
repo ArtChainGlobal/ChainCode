@@ -2,9 +2,11 @@ const Web3 = require('web3');
 const fs = require('fs');
 const ACG20 = require('../static/ACG20.json');
 const ACG721 = require('../static/ACG721.json');
+const PROXY = require('../static/Proxy.json');
 
 const contract20 = {instance: ""};
 const contract721 = {instance: ""};
+
 let web3;
 let administrator;
 
@@ -33,51 +35,82 @@ async function deploy_new_contracts(rpc_provider, protocol) {
     // Connect to private chain
     await connect_to_chain(rpc_provider, protocol);
 
+    ///////////////////////////////////////////////////////////
+    // Deploy raw contracts
+    ///////////////////////////////////////////////////////////
     // Generate new contract objects
-    instance20 = new web3.eth.Contract(JSON.parse(ACG20.abiString), null, {
+    raw20 = new web3.eth.Contract(JSON.parse(ACG20.abiString), null, {
         data: ACG20.bytecode
     });
-    instance721 = new web3.eth.Contract(JSON.parse(ACG721.abiString), null, {
+    raw721 = new web3.eth.Contract(JSON.parse(ACG721.abiString), null, {
         data: ACG721.bytecode
     });
-
     // Estimate gas required to deploy the contracts
-    const trans_estimate_gas_20 = await instance20.deploy().estimateGas();
-    const trans_estimate_gas_721 = await instance721.deploy().estimateGas();
-    // const gas_acg20 = await trans_estimate_gas_20;
-    // const gas_acg721 = await trans_estimate_gas_721;
-
+    let trans_estimate_gas_20 = await raw20.deploy().estimateGas();
+    let trans_estimate_gas_721 = await raw721.deploy().estimateGas();
     // Deploy the contracts
-    const newInstance20 = await instance20.deploy().send({
+    const raw20New = await raw20.deploy().send({
         from: administrator,
         gas: Math.floor(trans_estimate_gas_20 * 1.5)
     });
-    const newInstance721 = await instance721.deploy().send({
+    const raw721New = await raw721.deploy().send({
         from: administrator,
         gas: Math.floor(trans_estimate_gas_721 * 1.5)
     });
-    // newInstance20 = await trans_deploy_acg20;
-    // newInstance721 = await trans_deploy_acg721;
+    console.log("Now raw contracts are deployed, with address " + raw20New.options.address + " and " + raw721New.options.address);
+
+    ///////////////////////////////////////////////////////////
+    // Deploy upgradable proxies
+    ///////////////////////////////////////////////////////////
+    // Deploy upgradable proxy contract
+    proxy20 = new web3.eth.Contract(JSON.parse(PROXY.abiString), null, {
+        data: PROXY.bytecode
+    });
+    proxy721 = new web3.eth.Contract(JSON.parse(PROXY.abiString), null, {
+        data: PROXY.bytecode
+    });
+    // Estimate gas required to deploy the contracts
+    trans_estimate_gas_20 = await proxy20.deploy({arguments: [raw20New.options.address]}).estimateGas();
+    trans_estimate_gas_721 = await proxy721.deploy({arguments: [raw721New.options.address]}).estimateGas();
+    // Deploy the contracts
+    const dProxy20 = await proxy20.deploy({arguments: [raw20New.options.address]}).send({
+        from: administrator,
+        gas: Math.floor(trans_estimate_gas_20 * 1.5)
+    });
+    const dProxy721 = await proxy721.deploy({arguments: [raw721New.options.address]}).send({
+        from: administrator,
+        gas: Math.floor(trans_estimate_gas_721 * 1.5)
+    });
+
+    ///////////////////////////////////////////////////////////
+    // Instance and initialise contracts 
+    ///////////////////////////////////////////////////////////
+    const instance20 = new web3.eth.Contract(JSON.parse(ACG20.abiString), dProxy20.options.address);
+    const instance721 = new web3.eth.Contract(JSON.parse(ACG721.abiString), dProxy721.options.address);
+    console.log("Contracts deployed successfully ...\nACG20 is deployed at: ",
+    instance20.options.address,
+    "\nACG721 is deployed at: ", instance721.options.address);
+
+    await instance20.methods.transferOwnership(administrator).send({
+        from: administrator
+    });
+    await instance721.methods.transferOwnership(administrator).send({
+        from: administrator
+    });
 
     // Register each other for subsequent transactions
-    await newInstance20.methods.registerACG721Contract(newInstance721.options.address).send({
+    await instance20.methods.registerACG721Contract(instance721.options.address).send({
         from: administrator
     });
-    await newInstance721.methods.registerACG20Contract(newInstance20.options.address).send({
+    await instance721.methods.registerACG20Contract(instance20.options.address).send({
         from: administrator
     });
-    // await trans_register_20;
-    // await trans_register_721;
-
-    console.log("Contracts deployed successfully ...\nACG20 is deployed at: ",
-    newInstance20.options.address,
-    "\nACG721 is deployed at: ", newInstance721.options.address);
 
     const deployedConfig = {
         server: rpc_provider,
         administrator: administrator,
-        acg20_address: newInstance20.options.address,
-        acg721_address: newInstance721.options.address
+        acg20_address: instance20.options.address,
+        acg721_address: instance721.options.address
     };
 
     const confString = JSON.stringify(deployedConfig);

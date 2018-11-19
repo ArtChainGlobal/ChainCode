@@ -1,6 +1,6 @@
 const assert = require('assert');
 const acgApi = require('../api/artChainGlobalAPI.js');
-const SIMPLE_TEST_ON_ENVIRONMENT = false;
+const SIMPLE_TEST_ON_ENVIRONMENT = true;
 
 describe('API basic test framework', async function () {
 
