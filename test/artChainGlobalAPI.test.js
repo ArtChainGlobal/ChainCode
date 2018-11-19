@@ -162,7 +162,7 @@ describe('API basic test framework', async function () {
                 "status":"private",
                 "prize":"10000"
             };
-            await acgApi.update_artwork(updated_artwork_id, JSON.stringify(updated_info));
+            await acgApi.update_artwork(artist, universal_password, updated_artwork_id, JSON.stringify(updated_info), "auction");
             const updated_metadata = await acg721Inst.methods.referencedMetadata(updated_artwork_id).call();
             artwork_info_after = JSON.parse(updated_metadata);
             //assert.equal(artwork_info_after.status, "private", "Artwork status should be changed");
