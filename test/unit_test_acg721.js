@@ -7,7 +7,9 @@ contract('API Support: add_new_user()', function(accounts) {
 
   let acg721Inst;
   before ( async () => {
-    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    acg721 = await ACG721TOKEN.new();
+    acg721Proxy = await ACG721PROXY.new(acg721.address);
+    acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
     await acg721Inst.transferOwnership(accounts[0]);
     
   });
@@ -28,7 +30,9 @@ contract('API Support: post_new_artwork()', function(accounts) {
   let admin = accounts[0];
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    acg721 = await ACG721TOKEN.new();
+    acg721Proxy = await ACG721PROXY.new(acg721.address);
+    acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
     await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
@@ -84,7 +88,9 @@ contract('API Support: buy_artwork()', function(accounts) {
   let artwork1, artwork2;
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    acg721 = await ACG721TOKEN.new();
+    acg721Proxy = await ACG721PROXY.new(acg721.address);
+    acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
     await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
@@ -134,7 +140,9 @@ contract('API Support: check_artwork()', function(accounts) {
   let artwork1;
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    acg721 = await ACG721TOKEN.new();
+    acg721Proxy = await ACG721PROXY.new(acg721.address);
+    acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
     await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
@@ -181,7 +189,9 @@ contract('Code dev: approve() and transferFrom()', function(accounts) {
   let artwork1, artwork2;
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    acg721 = await ACG721TOKEN.new();
+    acg721Proxy = await ACG721PROXY.new(acg721.address);
+    acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
     await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",

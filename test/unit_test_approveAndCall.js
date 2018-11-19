@@ -2,6 +2,8 @@ const expectThrow = require("../scripts/expectThrow.js")
 
 var ACG721TOKEN = artifacts.require("ACG721");
 var ACG20TOKEN = artifacts.require("ACG20");
+var ACG20PROXY = artifacts.require("OwnedUpgradeabilityProxy");
+var ACG721PROXY = artifacts.require("OwnedUpgradeabilityProxy");
 
 contract('approveAndCall()', function(accounts) {
     let acg20Inst;
@@ -31,8 +33,16 @@ contract('approveAndCall()', function(accounts) {
         admin = accounts[0];
         artist = accounts[1];
 
-        acg20Inst = await ACG20TOKEN.deployed();
-        acg721Inst = await ACG721TOKEN.deployed();
+        acg20 = await ACG20TOKEN.new();
+        acg721 = await ACG721TOKEN.new();
+
+        acg20Proxy = await ACG20PROXY.new(acg20.address);
+        acg721Proxy = await ACG721PROXY.new(acg721.address);
+
+        acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
+        acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
+        await acg20Inst.transferOwnership(admin);
+        await acg721Inst.transferOwnership(admin);
 
         // initialize user's ACG20 balance
         accounts.forEach(async (user) => {
@@ -43,8 +53,8 @@ contract('approveAndCall()', function(accounts) {
         });
 
         // initialize user's ACG721 balance
-          await acg721Inst.mintWithMetadata(artist, 1, JSON.stringify(artwork1));
-          await acg721Inst.mintWithMetadata(artist, 2, JSON.stringify(artwork2));
+        await acg721Inst.mintWithMetadata(artist, 1, JSON.stringify(artwork1));
+        await acg721Inst.mintWithMetadata(artist, 2, JSON.stringify(artwork2));
     });
     it("Before calling approveAndCall(), register contracts to each other", async() => {
         await acg20Inst.registerACG721Contract(acg721Inst.address, {from: admin});
