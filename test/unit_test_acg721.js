@@ -1,12 +1,15 @@
 const expectThrow = require("../scripts/expectThrow.js")
 
 var ACG721TOKEN = artifacts.require("ACG721");
+var ACG721PROXY = artifacts.require("OwnedUpgradeabilityProxy");
 
 contract('API Support: add_new_user()', function(accounts) {
 
   let acg721Inst;
   before ( async () => {
-    acg721Inst = await ACG721TOKEN.deployed();
+    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    await acg721Inst.transferOwnership(accounts[0]);
+    
   });
   it("At the beginning, no extant artworks", async function() {
     let totalBalance = await acg721Inst.totalSupply.call();
@@ -25,7 +28,8 @@ contract('API Support: post_new_artwork()', function(accounts) {
   let admin = accounts[0];
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.deployed();
+    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",
@@ -80,7 +84,8 @@ contract('API Support: buy_artwork()', function(accounts) {
   let artwork1, artwork2;
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.deployed();
+    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",
@@ -129,7 +134,8 @@ contract('API Support: check_artwork()', function(accounts) {
   let artwork1;
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.deployed();
+    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",
@@ -175,7 +181,8 @@ contract('Code dev: approve() and transferFrom()', function(accounts) {
   let artwork1, artwork2;
 
   before(async() => {
-    acg721Inst = await ACG721TOKEN.deployed();
+    acg721Inst = await ACG721TOKEN.at(ACG721PROXY.address);
+    await acg721Inst.transferOwnership(accounts[0]);
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",

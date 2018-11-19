@@ -158,6 +158,7 @@ contract ACG721 is StandardERC721 {
     // Metadata infos
     mapping(uint => string) public referencedMetadata;
 
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event Minted(address indexed _to, uint256 indexed _tokenId);
     event RegisterACG20Contract(address indexed _contract);
 
@@ -200,6 +201,19 @@ contract ACG721 is StandardERC721 {
         require(_contract != address(0), "Must register a valid contract address");
         emit RegisterACG20Contract(_contract);
         acg20Contract = _contract;
+    }
+
+    /**
+	* @dev Allows the current contract owner to transfer control of the contract to a new Owner.
+	* @param newOwner The address to transfer ownership to.
+	*/
+    function transferOwnership(address newOwner) public {
+        if (owner != address(0)) {
+            require(msg.sender == owner);
+        }
+        require(newOwner != address(0), "New owmer must have a non-zero address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
     }
 
     /**
