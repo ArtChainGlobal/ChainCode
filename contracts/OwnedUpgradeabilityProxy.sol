@@ -15,7 +15,7 @@ contract OwnedUpgradeabilityProxy is UpgradeabilityProxy {
   event ProxyOwnershipTransferred(address previousOwner, address newOwner);
 
   // Storage position of the owner of the contract
-  bytes32 private constant proxyOwnerPosition = keccak256("org.govblocks.proxy.owner");
+  bytes32 private constant proxyOwnerPosition = keccak256("art.chain.global.owner");
 
   /**
   * @dev the constructor sets the original owner of the contract to the sender account.

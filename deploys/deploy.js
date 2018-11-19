@@ -4,9 +4,6 @@ const ACG20 = require('../static/ACG20.json');
 const ACG721 = require('../static/ACG721.json');
 const PROXY = require('../static/Proxy.json');
 
-const contract20 = {instance: ""};
-const contract721 = {instance: ""};
-
 let web3;
 let administrator;
 

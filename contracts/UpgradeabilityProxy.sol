@@ -14,7 +14,7 @@ contract UpgradeabilityProxy is Proxy {
   event Upgraded(address indexed implementation);
 
   // Storage position of the address of the current implementation
-  bytes32 private constant implementationPosition = keccak256("org.govblocks.proxy.implementation");
+  bytes32 private constant implementationPosition = keccak256("art.chain.global.implementation");
 
   /**
    * @dev Constructor function
