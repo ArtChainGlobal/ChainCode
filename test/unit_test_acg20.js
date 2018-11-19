@@ -1,6 +1,7 @@
 const expectThrow = require("../scripts/expectThrow.js")
 
 var ACG20TOKEN = artifacts.require("ACG20");
+var ACG20PROXY = artifacts.require("OwnedUpgradeabilityProxy");
 
 contract('API Support: add_new_user()', function(accounts) {
   let acg20Inst;
@@ -10,7 +11,8 @@ contract('API Support: add_new_user()', function(accounts) {
   let contractOwner = accounts[0];
   
   before("Add users with initial balances", async () => {
-    acg20Inst = await ACG20TOKEN.deployed();
+    acg20Inst = await ACG20TOKEN.at(ACG20PROXY.address);
+    await acg20Inst.transferOwnership(contractOwner);
 
     accounts.forEach(async (user) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -51,7 +53,8 @@ contract('API Support: buy_token()', function(accounts) {
   let totalSupply = 0;
 
   before(async () => {
-    acg20Inst = await ACG20TOKEN.deployed();
+    acg20Inst = await ACG20TOKEN.at(ACG20PROXY.address);
+    await acg20Inst.transferOwnership(contractOwner);
   });
   it("Initial total supply should be zero", async () => {
     let totalSupplyValue = await acg20Inst.totalSupply.call();
@@ -74,7 +77,8 @@ contract('API Support: buy_artwork()', function(accounts) {
   let userBalance = [];
 
   before("Add users with initial balances", async () => {
-    acg20Inst = await ACG20TOKEN.deployed();
+    acg20Inst = await ACG20TOKEN.at(ACG20PROXY.address);
+    await acg20Inst.transferOwnership(accounts[0]);
 
     accounts.forEach(async (user) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -164,7 +168,8 @@ contract('API Support: freeze_token()', function(accounts) {
   let artwork2 = 1;
 
   before(async () => {
-    acg20Inst = await ACG20TOKEN.deployed();
+    acg20Inst = await ACG20TOKEN.at(ACG20PROXY.address);
+    await acg20Inst.transferOwnership(admin);
 
     accounts.forEach(async (user) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -294,7 +299,9 @@ contract('Code dev: burn() and burnFrom()', function(accounts) {
   let userBalance = new Array;
 
   before ( async () => {
-    acg20Inst = await ACG20TOKEN.deployed();
+    acg20Inst = await ACG20TOKEN.at(ACG20PROXY.address);
+    await acg20Inst.transferOwnership(accounts[0]);
+
     accounts.forEach(async (user, index) => {
       await acg20Inst.mint(user, userInitBalance);
     });
@@ -344,8 +351,9 @@ contract('Code dev: transferOwnerShip', function(accounts) {
   let owner, newOwner;
 
   before ( async () => {
-    acg20Inst = await ACG20TOKEN.deployed();
+    acg20Inst = await ACG20TOKEN.at(ACG20PROXY.address);
     owner = accounts[0];
+    await acg20Inst.transferOwnership(owner);
     newOwner = accounts[1];
   });
   it("After contract deployement, the owner should be who created the contract", async () => {

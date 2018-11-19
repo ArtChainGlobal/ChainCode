@@ -187,7 +187,10 @@ contract ACG20 is StandardERC20 {
 	* @dev Allows the current contract owner to transfer control of the contract to a new Owner.
 	* @param newOwner The address to transfer ownership to.
 	*/
-    function transferOwnership(address newOwner) public onlyOwner {
+    function transferOwnership(address newOwner) public {
+        if (owner != address(0)) {
+            require(msg.sender == owner);
+        }
         require(newOwner != address(0), "New owmer must have a non-zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
