@@ -200,12 +200,13 @@ describe('API basic test framework', async function () {
             "status":"selling",
             "prize":"10000"
         };
-        await acgApi.update_artwork(artist, universal_password, updated_artwork_id, JSON.stringify(updated_info), "auction");
+        const update_receipt = await acgApi.update_artwork(artist, universal_password, updated_artwork_id, updated_info);
+        transaction_to_be_checked.push(update_receipt);
 
         // Now check the result
         const updated_metadata = await acg721Inst.methods.referencedMetadata(updated_artwork_id).call();
         artwork_info_after = JSON.parse(updated_metadata);
-        console.log(artwork_info_after);
+        assert.equal(artwork_info_after.status, "selling", "Artwork status should be changed");
     });
 
     it('Test API: buy_artwork', async() => {

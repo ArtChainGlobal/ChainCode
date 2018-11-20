@@ -231,14 +231,14 @@ async function post_new_artwork(user_address, password, artwork_info) {
  * @param {*} artwork_info  provided by user, or default = ""
  * @param {*} artwork_status provided by user, or default = "presenting"
  */
-async function update_artwork(owner_address, password, artwork_id, artwork_info, artwork_status) {
+async function update_artwork(owner_address, password, artwork_id, artwork_info) {
     let transaction_id = 0x0;
     // need to verify owner;
     if (!verify_artwork_owner(owner_address, artwork_id)) {
         console.log("mismatch owner_address of the artwork ID, or it does not exist");
         return transaction_id;
     }
-    if (artwork_status === "selling" || artwork_status === "auction") {
+    if (artwork_info.status == "selling" || artwork_info.status == "auction") {
         // at first, unlock the account of owner for 30 second
         const unlockAccount = await unlock_account(owner_address, password, 60);
         if (!unlockAccount) {
@@ -248,12 +248,9 @@ async function update_artwork(owner_address, password, artwork_id, artwork_info,
         //them, the owner will approve for administraor to sell his artwork at the price
          // Ask seller to approve contract ACG20 to transfer the specified artwork            
         try {
-            const trans_approve_artwork = await instance721.methods.approve(
-                address_20, artwork_id).send({
+            await instance721.methods.approve(address_20, artwork_id).send({
                 from: owner_address
             });
-            //console.log(owner_address + " approve " + address_20 + " to transfer " + artwork_id);
-            return trans_approve_artwork.transactionHash;
         } catch (err) {
             console.log("Failed on approve() from artwork seller");
             return transaction_id;
