@@ -1,6 +1,6 @@
 const assert = require('assert');
 const acgApi = require('../api/artChainGlobalAPI.js');
-const SIMPLE_TEST_ON_ENVIRONMENT = true;
+const SIMPLE_TEST_ON_ENVIRONMENT = false;
 
 describe('API basic test framework', async function () {
 
@@ -151,169 +151,171 @@ describe('API basic test framework', async function () {
             Number(acg721_balance_before) + artwork_number,
             Number(acg721_balance_after),
             "ACG721 balance should increase by 1");
+    });
+
+    it('Test API: buy_token', async () => {
+
+        // Obtain chain status
+        const trans_get_balance_before = [];
+        for (let i=0; i<user_number; i++) {
+            trans_get_balance_before[i] = acg20Inst.methods.balanceOf(users[i]).call();
+        }
+        // Wait for the result
+        const acg20_balance = [];
+        for (let i=0; i<user_number; i++) {
+            acg20_balance[i] = Number(await trans_get_balance_before[i]);
+        }
+
+        // buyer buy amount of ACG20 tokens
+        const trans_buy_token = [];
+        for (let i=0; i<user_number; i++) {
+            const token_amount = 1e8 + Math.floor(Math.random()*1e8);
+            trans_buy_token[i] = acgApi.buy_token(users[i], universal_password, token_amount);
+            acg20_balance[i] += token_amount;
+        }
+        // Wait for the result
+        for (let i=0; i<user_number; i++) {
+            transaction_id = await trans_buy_token[i];
+            transaction_to_be_checked.push(transaction_id);
+        }
+
+        // Obtain chain status after buying tokens
+        const trans_get_balance_after = [];
+        for (let i=0; i<user_number; i++) {
+            trans_get_balance_after[i] = acg20Inst.methods.balanceOf(users[i]).call();
+        }
+        // Check the result
+        for (let i=0; i<user_number; i++) {
+            acg20_balance_after = await trans_get_balance_after[i];
+            assert.equal(Number(acg20_balance_after), acg20_balance[i], "ACG20 balance should increase after buy_token()");
+        }
+    });
+
+    it('Test API: update_artwork', async() => {
+        const updated_artwork_id = artwork_id_list[0];
+        const updated_info = {
+            "type":"paint",
+            "artist":"Lin Yang",
+            "loyalty":"0.1",
+            "status":"selling",
+            "prize":"10000"
+        };
+        await acgApi.update_artwork(artist, universal_password, updated_artwork_id, JSON.stringify(updated_info), "auction");
+
+        // Now check the result
+        const updated_metadata = await acg721Inst.methods.referencedMetadata(updated_artwork_id).call();
+        artwork_info_after = JSON.parse(updated_metadata);
+        console.log(artwork_info_after);
+    });
+
+    it('Test API: buy_artwork', async() => {
+        // Use the one updated for selling in last test case.
+        artwork_id_sold = artwork_id_list[0];
+        collector = users[3];
+
+        // Read out artwork information
+        const trans_read_metadata =  acg721Inst.methods.referencedMetadata(artwork_id_sold).call();
+        // Read out buyer and seller's balance of ACG20
+        let trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
+        let trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
+
+        // Calculate sell price and commission
+        const metadata = await trans_read_metadata;
+        const artwork_info = JSON.parse(metadata);
+        const artwork_prize = Number(artwork_info.prize);
+        const sell_commission = Math.floor(artwork_prize * Number(artwork_info.loyalty));
+        const sell_price = artwork_prize - sell_commission;
+
+        // Wait for the return of user balance
+        const buyer_balance_before = await trans_get_buyer_balance;
+        const seller_balance_before = await trans_get_seller_balance;
+
+        // Buy artwork
+        await acgApi.buy_artwork(collector, universal_password, artist, artwork_id_sold, artwork_prize);
+
+        // Read out buyer and seller's balance of ACG20
+        trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
+        trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
+        // Get owner of the sold artwork
+        trans_get_owner = acg721Inst.methods.ownerOf(artwork_id_sold).call();
+
+        // Wait for the result
+        const buyer_balance_after = await trans_get_buyer_balance;
+        const seller_balance_after = await trans_get_seller_balance;
+        const new_owner = await trans_get_owner;
+
+        // Check result
+        assert.equal(Number(buyer_balance_after), Number(buyer_balance_before)-artwork_prize, "Buyer's balance should decrease");
+        assert.equal(Number(seller_balance_after), Number(seller_balance_before)+sell_price, "Seller's balance should increase");
+        assert.equal(collector, new_owner, "New owner should be buyer");
+    });
+
+    it('Test API: freeze_token', async function () {
+        const buyer1 = users[2];
+        // Top up buyer's ACG20 token
+        let buyer_balance_20 = await acg20Inst.methods.balanceOf(buyer1).call();
+        buyer_balance_20 = Number(buyer_balance_20);
+        if (buyer_balance_20 < 1e9) {
+            const topup_value = 1e9;
+            await acgApi.buy_token(buyer1, universal_password, topup_value);
+            buyer_balance_20 += topup_value;
+        }
+
+        const artwork_id = artwork_id_list[0];
+        const artwork_bid = 1e7;
+        
+        // Freeze token
+        await acgApi.freeze_token(buyer1, universal_password, artwork_id, artwork_bid);
+
+        buyer_balance_20 -= artwork_bid;
+        const buyer_balance_after = await acg20Inst.methods.balanceOf(buyer1).call();
+        assert.equal(Number(buyer_balance_after), buyer_balance_20, "User's balance should decrease by freezing");
+    });
+
+    it('Test API: check_artwork', async function () {
+        const trans_check_artwork = [];
+        artwork_id_list.forEach((artwork_id) => {
+            if (artwork_id !== artwork_id_sold) {
+                trans_check_artwork.push(acgApi.check_artwork(artwork_id));
+            }
+        });
+        // Wait for the result
+        trans_check_artwork.forEach(async (trans) => {
+            [artwork_owner, artwork_info] = await trans;
+            assert.equal(artwork_owner, artist, "Artwork owner should be the artist");
+        });
+    });
+
+    it('Test API: check_user', async function () {
+        // Query user information
+        const trans_check_user = [];
+        for (let i=0; i<user_number; i++) {
+            trans_check_user[i] = acgApi.check_user(users[i]);
+        }
+
+        // Wait for result
+        for (let i=0; i<user_number; i++) {
+            let user_type, user_balance_20, user_balance_721, artwork_list;
+            [user_type, user_balance_20, user_balance_721, artwork_list] = 
+            await trans_check_user[i];
+            // Print out user information
+            //console.log("User's type is ", user_type);
+            //console.log("User's balance of ACG20 tokens is ", user_balance_20);
+            //console.log("User's balance of ACG721 tokens is ", user_balance_721);
+            //console.log("User's artwork list is\n", artwork_list);
+            }    
+    });
+
+    it('Test API: check_transaction', async function () {
+        const trans_check_transaction = [];
+        transaction_to_be_checked.forEach((trans_id) => {
+            trans_check_transaction.push(acgApi.check_transaction(trans_id));
         });
 
-        it('Test API: update_artwork', async() => {
-            const updated_artwork_id = artwork_id_list[0];
-            const updated_info = {
-                "type":"paint",
-                "artist":"Lin Yang",
-                "loyalty":"0.1",
-                "status":"private",
-                "prize":"10000"
-            };
-            await acgApi.update_artwork(artist, universal_password, updated_artwork_id, JSON.stringify(updated_info), "auction");
-            const updated_metadata = await acg721Inst.methods.referencedMetadata(updated_artwork_id).call();
-            artwork_info_after = JSON.parse(updated_metadata);
-            //assert.equal(artwork_info_after.status, "private", "Artwork status should be changed");
+        // Check result
+        trans_check_transaction.forEach(async (trans) => {
+            transaction = await trans;
+            //console.log(transaction);
         });
-/*
-        it('Test API: buy_token', async () => {
-
-            // Obtain chain status
-            const trans_get_balance_before = [];
-            for (let i=0; i<user_number; i++) {
-                trans_get_balance_before[i] = acg20Inst.methods.balanceOf(users[i]).call();
-            }
-            // Wait for the result
-            const acg20_balance = [];
-            for (let i=0; i<user_number; i++) {
-                acg20_balance[i] = Number(await trans_get_balance_before[i]);
-            }
-    
-            // buyer buy amount of ACG20 tokens
-            const trans_buy_token = [];
-            for (let i=0; i<user_number; i++) {
-                const token_amount = 1e8 + Math.floor(Math.random()*1e8);
-                trans_buy_token[i] = acgApi.buy_token(users[i], token_amount);
-                acg20_balance[i] += token_amount;
-            }
-            // Wait for the result
-            for (let i=0; i<user_number; i++) {
-                transaction_id = await trans_buy_token[i];
-                transaction_to_be_checked.push(transaction_id);
-            }
-
-            // Obtain chain status after buying tokens
-            const trans_get_balance_after = [];
-            for (let i=0; i<user_number; i++) {
-                trans_get_balance_after[i] = acg20Inst.methods.balanceOf(users[i]).call();
-            }
-            // Check the result
-            for (let i=0; i<user_number; i++) {
-                acg20_balance_after = await trans_get_balance_after[i];
-                assert.equal(Number(acg20_balance_after), acg20_balance[i], "ACG20 balance should increase after buy_token()");
-            }
-        });
-
-        it('Test API: buy_artwork', async() => {
-            artwork_id_sold = artwork_id_list[3];
-            collector = users[3];
-
-            // Read out artwork information
-            const trans_read_metadata =  acg721Inst.methods.referencedMetadata(artwork_id_sold).call();
-            // Read out buyer and seller's balance of ACG20
-            let trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
-            let trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
-
-            // Calculate sell price and commission
-            const metadata = await trans_read_metadata;
-            const artwork_info = JSON.parse(metadata);
-            const artwork_prize = Number(artwork_info.prize);
-            const sell_commission = Math.floor(artwork_prize * Number(artwork_info.loyalty));
-            const sell_price = artwork_prize - sell_commission;
-
-            // Wait for the return of user balance
-            const buyer_balance_before = await trans_get_buyer_balance;
-            const seller_balance_before = await trans_get_seller_balance;
-
-            // Buy artwork
-            await acgApi.buy_artwork(collector, artist, artwork_id_sold, artwork_prize);
-
-            // Read out buyer and seller's balance of ACG20
-            trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
-            trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
-            // Get owner of the sold artwork
-            trans_get_owner = acg721Inst.methods.ownerOf(artwork_id_sold).call();
-
-            // Wait for the result
-            const buyer_balance_after = await trans_get_buyer_balance;
-            const seller_balance_after = await trans_get_seller_balance;
-            const new_owner = await trans_get_owner;
-
-            // Check result
-            assert.equal(Number(buyer_balance_after), Number(buyer_balance_before)-artwork_prize, "Buyer's balance should decrease");
-            assert.equal(Number(seller_balance_after), Number(seller_balance_before)+sell_price, "Seller's balance should increase");
-            assert.equal(collector, new_owner, "New owner should be buyer");
-            // 
-
-        });
-    
-        it('Test API: freeze_token', async function () {
-            const buyer1 = users[2];
-            // Top up buyer's ACG20 token
-            let buyer_balance_20 = await acg20Inst.methods.balanceOf(buyer1).call();
-            buyer_balance_20 = Number(buyer_balance_20);
-            if (buyer_balance_20 < 1e9) {
-                const topup_value = 1e9;
-                await acgApi.buy_token(buyer1, topup_value);
-                buyer_balance_20 += topup_value;
-            }
-
-            const artwork_id = artwork_id_list[0];
-            const artwork_bid = 1e7;
-            await acgApi.freeze_token(buyer1, artwork_id, artwork_bid);
-
-            buyer_balance_20 -= artwork_bid;
-            const buyer_balance_after = await acg20Inst.methods.balanceOf(buyer1).call();
-            assert.equal(Number(buyer_balance_after), buyer_balance_20, "User's balance should decrease by freezing");
-        });
-
-        it('Test API: check_artwork', async function () {
-            const trans_check_artwork = [];
-            artwork_id_list.forEach((artwork_id) => {
-                if (artwork_id !== artwork_id_sold) {
-                    trans_check_artwork.push(acgApi.check_artwork(artwork_id));
-                }
-            });
-            // Wait for the result
-            trans_check_artwork.forEach(async (trans) => {
-                [artwork_owner, artwork_info] = await trans;
-                assert.equal(artwork_owner, artist, "Artwork owner should be the artist");
-            });
-        });
-
-        it('Test API: check_user', async function () {
-            // Query user information
-            const trans_check_user = [];
-            for (let i=0; i<user_number; i++) {
-                trans_check_user[i] = acgApi.check_user(users[i]);
-            }
-
-            // Wait for result
-            for (let i=0; i<user_number; i++) {
-                let user_type, user_balance_20, user_balance_721, artwork_list;
-                [user_type, user_balance_20, user_balance_721, artwork_list] = 
-                await trans_check_user[i];
-                // Print out user information
-                //console.log("User's type is ", user_type);
-                //console.log("User's balance of ACG20 tokens is ", user_balance_20);
-                //console.log("User's balance of ACG721 tokens is ", user_balance_721);
-                //console.log("User's artwork list is\n", artwork_list);
-                }    
-        });
-
-        it('Test API: check_transaction', async function () {
-            const trans_check_transaction = [];
-            transaction_to_be_checked.forEach((trans_id) => {
-                trans_check_transaction.push(acgApi.check_transaction(trans_id));
-            });
-
-            // Check result
-            trans_check_transaction.forEach(async (trans) => {
-                transaction = await trans;
-                //console.log(transaction);
-            });
-        });
-        */
+    });
 });

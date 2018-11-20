@@ -97,9 +97,23 @@ async function _retrieve_batch_accounts_from_node(user_number) {
     return users.slice(2, 2+user_number);
 }
 
-async function _unlock_account(address, password) {
-    // Keep account unlocked for one hour
-    return web3.eth.personal.unlockAccount(address, password, 60*60);
+/**
+ * This function return a promise
+ * use to unlock the account whenever we need a transaction on the account
+ * @param {*} account_address provided by user
+ * @param {*} password        provided by user
+ * @param {*} unlock_time     provided by admin
+ */
+async function unlock_account(account_address, password, unlock_time) {
+    let result = true;
+    try {
+        console.log("unlocking account " + account_address +  " for " + unlock_time + " seconds");
+        await web3.eth.personal.unlockAccount(account_address, password, unlock_time);
+    } catch(err) {
+        result = false;
+        console.log("Failed with unlock account as ", err);
+    }
+    return result;
 }
 
 function prepare(protocol = "http") {
@@ -238,7 +252,7 @@ async function update_artwork(owner_address, password, artwork_id, artwork_info,
                 address_20, artwork_id).send({
                 from: owner_address
             });
-            console.log(owner_address + " approve " + address_20 + " to transfer " + artwork_id);
+            //console.log(owner_address + " approve " + address_20 + " to transfer " + artwork_id);
             return trans_approve_artwork.transactionHash;
         } catch (err) {
             console.log("Failed on approve() from artwork seller");
@@ -300,26 +314,23 @@ const buy_artwork = async (buyer_address, password, owner_address, artwork_id, a
     const metadata = await instance721.methods.referencedMetadata(artwork_id).call();
     // Calculate commission
     artwork_info = JSON.parse(metadata);
-    console.log("Artwork is " + artwork_info);
 
     // calculate commision
-    let commision;
+    let commission;
     if (!isNaN(artwork_info.loyalty)) {
-        commision = 0;
+        commission = 0;
     }
     commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
     
-    const price = artwork_price - commission;       
+    const price = artwork_price - commission;  
 
     // Submit the purchase transaction
     try {
         //await instance721.methods.allowance(buyer_address, address_20)
-        const buyer_balance = await instance20.methods.balanceOf(buyer_address).call();
         const gasValue = await instance20.methods.approveAndCall(
             owner_address, price, commission, artwork_id).estimateGas({
             from: buyer_address
         });
-        console.log("estimate gas: " + gasValue);
         const receipt = await instance20.methods.approveAndCall(
             owner_address, price, commission, artwork_id).send({
                 from: buyer_address,
@@ -374,7 +385,7 @@ async function freeze_token(buyer_address, password, artwork_id, artwork_prize) 
         return transaction_id;
     }
     // unlock the account of buyer for 60 second
-    const unlockBuyerAccount = await unlock_account(buyer_address, password, 11);
+    const unlockBuyerAccount = await unlock_account(buyer_address, password, 60);
     if (!unlockBuyerAccount) {
         console.log("unlock accoung of buyer err");
         return transaction_id;
@@ -467,26 +478,6 @@ async function check_user(user_address) {
 
 async function check_transaction(transaction_id) {
     return web3.eth.getTransaction(transaction_id);
-}
-
-/**
- * This function return a promise
- * use to unlock the account whenever we need a transaction on the account
- * @param {*} account_address provided by user
- * @param {*} password        provided by user
- * @param {*} unlock_time     provided by admin
- */
-async function unlock_account(account_address, password, unlock_time) {
-    let result = true;
-    try {
-        console.log(`unlocking account ${account_address} ...`);
-        await web3.eth.personal.unlockAccount(account_address, password, unlock_time);
-        // var newBalance = await web3.eth.getBalance(account_address)
-    } catch(err) {
-        result = false;
-        console.log("Something wrong with unlock account as ", err);
-    }
-    return result;
 }
 
 /**
