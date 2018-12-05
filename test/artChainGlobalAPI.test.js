@@ -14,6 +14,7 @@ describe('API basic test framework', async function () {
     let artwork_id_sold;
     let collector;
     let web3;
+    let admin;
     const universal_password = "password";
     
     before ("Setup test environment step by step", async function () {
@@ -25,6 +26,7 @@ describe('API basic test framework', async function () {
         // Setup environment
         // ----------------------------------------------------------
         web3 = acgApi.prepare();
+        admin = acgApi.getAdministrator();
 
         // ----------------------------------------------------------
         // Prepare a set of testing accounts by either:
@@ -216,38 +218,59 @@ describe('API basic test framework', async function () {
 
         // Read out artwork information
         const trans_read_metadata =  acg721Inst.methods.referencedMetadata(artwork_id_sold).call();
-        // Read out buyer and seller's balance of ACG20
+
+        // Read out balances of roles involved into the trade
         let trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
         let trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
+        let trans_get_admin_balance = acg20Inst.methods.balanceOf(admin).call();
 
-        // Calculate sell price and commission
+        const empty_address = "0x0000000000000000000000000000000000000000"
+        
         const metadata = await trans_read_metadata;
         const artwork_info = JSON.parse(metadata);
-        const artwork_prize = Number(artwork_info.prize);
-        const sell_commission = Math.floor(artwork_prize * Number(artwork_info.loyalty));
-        const sell_price = artwork_prize - sell_commission;
+        const artwork_price = Number(artwork_info.prize);
+        const witness_proportion = Number(artwork_info.loyalty);
+        const witness_share = Math.floor(artwork_price * witness_proportion);
+        const seller_share = artwork_price - witness_share;
 
         // Wait for the return of user balance
         const buyer_balance_before = await trans_get_buyer_balance;
         const seller_balance_before = await trans_get_seller_balance;
+        const witness_balance_before = await trans_get_admin_balance;
 
         // Buy artwork
-        await acgApi.buy_artwork(collector, universal_password, artist, artwork_id_sold, artwork_prize);
+        await acgApi.buy_artwork(
+            collector,                      // buyer
+            universal_password,             // buyer_password
+            artwork_id_sold,                // artwork_id
+            artwork_price,                  // artwork_price
+            artist,                         // artwork_owner
+            empty_address,                  // copyright_holder
+            0,                              // copyright_proportion
+            empty_address,                  // curator
+            0,                              // curator_proportion
+            witness_proportion              // witness_proportion
+             );
 
         // Read out buyer and seller's balance of ACG20
         trans_get_buyer_balance = acg20Inst.methods.balanceOf(collector).call();
         trans_get_seller_balance = acg20Inst.methods.balanceOf(artist).call();
+        trans_get_admin_balance = acg20Inst.methods.balanceOf(admin).call();
+        
         // Get owner of the sold artwork
         trans_get_owner = acg721Inst.methods.ownerOf(artwork_id_sold).call();
 
         // Wait for the result
         const buyer_balance_after = await trans_get_buyer_balance;
         const seller_balance_after = await trans_get_seller_balance;
+        const witness_balance_after = await trans_get_admin_balance;
         const new_owner = await trans_get_owner;
 
         // Check result
-        assert.equal(Number(buyer_balance_after), Number(buyer_balance_before)-artwork_prize, "Buyer's balance should decrease");
-        assert.equal(Number(seller_balance_after), Number(seller_balance_before)+sell_price, "Seller's balance should increase");
+        assert.equal(Number(buyer_balance_after), Number(buyer_balance_before)-artwork_price, "Buyer's balance should decrease");
+        assert.equal(Number(seller_balance_after), Number(seller_balance_before)+seller_share, "Seller's balance should increase");
+        assert.equal(Number(witness_balance_after), Number(witness_balance_before)+witness_share, "Witness's balance should increase");
+        
         assert.equal(collector, new_owner, "New owner should be buyer");
     });
 

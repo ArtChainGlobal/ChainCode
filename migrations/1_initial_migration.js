@@ -8,6 +8,7 @@ var ACG721PROXY = artifacts.require("OwnedUpgradeabilityProxy");
 module.exports = function(deployer) {
   deployer.deploy(Migrations);
 //  deployer.deploy(ArtChainToken);
+
   deployer.deploy(ACG20TOKEN).then(function() {
     return deployer.deploy(ACG20PROXY, ACG20TOKEN.address);
   });

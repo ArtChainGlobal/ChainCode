@@ -128,6 +128,10 @@ function prepare(protocol = "http") {
     return web3;
 }
 
+function getAdministrator() {
+    return administrator;
+}
+
 async function safeguard_account_balance(account_address) {
     const account_balance_wei = await web3.eth.getBalance(account_address);
     const account_balance_eth = web3.utils.fromWei(account_balance_wei, "ether");
@@ -294,43 +298,84 @@ async function update_artwork(owner_address, password, artwork_id, artwork_info)
  * @param {*} artwork_id    provided by user
  * @param {*} artwork_price provided by user
  */
-const buy_artwork = async (buyer_address, password, owner_address, artwork_id, artwork_price) => {
 
+const buy_artwork = async (
+    buyer,
+    buyer_password,
+    artwork_id,
+    artwork_price,
+    artwork_owner,
+    copyright_holder,
+    copyright_proportion,
+    curator,
+    curator_proportion,
+    witness_proportion) => {
     let transaction_id = 0x0;
-    if (!verify_artwork_owner(owner_address, artwork_id)) {
+    // Check argument validity
+    if (web3.utils.isAddress(buyer) &&
+        web3.utils.isAddress(artwork_owner) &&
+        typeof artwork_price === 'number' && 
+        Math.floor(artwork_price) === artwork_price &&
+        typeof copyright_proportion === 'number' &&
+        copyright_proportion >= 0 && copyright_proportion < 1 &&
+        typeof curator_proportion === 'number' &&
+        curator_proportion >= 0 && curator_proportion < 1 &&
+        typeof witness_proportion === 'number' &&
+        witness_proportion >= 0 && witness_proportion < 1) {
+        // do nothing, valid argument
+    } else {
+        console.log("buy_artwork(): argument invalid ...");
+        return transaction_id;
+    }
+
+    if (!verify_artwork_owner(artwork_owner, artwork_id)) {
         console.log("Mismatch owner_address or artwork does not exist");
         return transaction_id;
     }
+
     // unlock the account for 60 seconds to perform the transaction
-    const unlockBuyerAccount = await unlock_account(buyer_address, password, 60);
+    const unlockBuyerAccount = await unlock_account(buyer, buyer_password, 60);
     if (!unlockBuyerAccount) {
         console.log("unlock accoung of buyer err");
         return transaction_id;
     }
-    // Retrieve artwork infomation to calculate commission
-    const metadata = await instance721.methods.referencedMetadata(artwork_id).call();
-    // Calculate commission
-    artwork_info = JSON.parse(metadata);
 
-    // calculate commision
-    let commission;
-    if (!isNaN(artwork_info.loyalty)) {
-        commission = 0;
+    // construct recepient list
+    // MUST insert artwork_owner into the first position
+    const recepients = [artwork_owner];
+    const tokens = [artwork_price];
+    // insert copyright holder
+    if (web3.utils.isAddress(copyright_holder) && copyright_proportion > 0) {
+        recepients.push(copyright_holder);
+        const share = Math.floor(artwork_price * copyright_proportion);
+        tokens.push(share);
+        tokens[0] -= share;
     }
-    commission = Math.floor(artwork_price * Number(artwork_info.loyalty));
-    
-    const price = artwork_price - commission;  
+    // insert curator
+    if (web3.utils.isAddress(curator) && curator_proportion > 0) {
+        recepients.push(curator);
+        const share = Math.floor(artwork_price * curator_proportion);
+        tokens.push(share);
+        tokens[0] -= share;
+    }
+    // insert witness
+    if (witness_proportion > 0) {
+        recepients.push(administrator);
+        const share = Math.floor(artwork_price * witness_proportion);
+        tokens.push(share);
+        tokens[0] -= share;
+    }
 
     // Submit the purchase transaction
     try {
         //await instance721.methods.allowance(buyer_address, address_20)
-        const gasValue = await instance20.methods.approveAndCall(
-            owner_address, price, commission, artwork_id).estimateGas({
-            from: buyer_address
+        const gasValue = await instance20.methods.safeTokenTrade(
+            artwork_price, artwork_id, recepients, tokens).estimateGas({
+            from: buyer
         });
-        const receipt = await instance20.methods.approveAndCall(
-            owner_address, price, commission, artwork_id).send({
-                from: buyer_address,
+        const receipt = await instance20.methods.safeTokenTrade(
+            artwork_price, artwork_id, recepients, tokens).send({
+                from: buyer,
                 gas: Math.floor(gasValue*1.5)
             });
         return receipt.transactionHash;        
@@ -527,6 +572,7 @@ module.exports = {
     // Auxiliary functions:
     // ----------------------------
     prepare: prepare,
+    getAdministrator: getAdministrator,
     safeguard_account_balance: safeguard_account_balance,
     get_contracts_instrance: get_contracts_instrance,
     simple_test_on_environment: simple_test_on_environment,

@@ -2,11 +2,6 @@ pragma solidity ^0.4.24;
 
 import "./SafeMath.sol";
 
-contract ACG20Interface {
-    function payForArtworkFrom(address _from, address _to, uint256 _price, uint256 _commission, uint256 _artworkId) public returns (bool) 
-    {}
-}
-
 /**
  * @title StandardERC721
  *
@@ -178,6 +173,10 @@ contract ACG721 is StandardERC721 {
         _;
     }
 
+    function version() public pure returns (string) {
+        return "v1.0_5DEC2018_U";
+    }
+
     /**
 	* @dev The initializer function is used instead of constructor just because the contract
     * is expected to be deployed in unstructured upgradable proxy pattern, so it only plays 
@@ -288,27 +287,21 @@ contract ACG721 is StandardERC721 {
     }
 
     /**
-	* @dev Called as part of method `approveAndCall()` of ACG20 contract, for a safe payment of the NFT. See `approveAndCall()` for more information. Throws if:
+	* @dev Called as part of method `safeTokenTrade()` of ACG20 contract, for a safe payment of the NFT. See `safeTokenTrade()` for more information. Throws if:
     * - `_tokenId` is not extant, or
-    * - `msg.sender` is not the registered ACG20 contract address, or
-    * - call to method `payForArtworkFrom()` of ACG20 contract failed
+    * - `msg.sender` is not the registered ACG20 contract address.
     *
     * The method establishes:
-    * Step 1: transfer tokens of `_buyer` to `_seller` and the contract owner;
-    * Step 2: change the owner of the NFT with id `_tokenId` to `_buyer`.
+    * Step 1: change the owner of the NFT with id `_tokenId` to `_to`.
     *
-    * @param _buyer the address which the ACG20 tokens are transferred from
-    * @param _seller the address of NFT owner
-    * @param _price the amount of ACG20 tokens to be transferred to `_seller`
-    * @param _commission the amount of ACG20 tokens to be transferred to contract owner
+    * @param _to buyer of NFT
+    * @param _from seller of NFT
     * @param _tokenId the NFT id which the ACG20 tokens are transferred for
 	*/
-    function receiveApproval(address _buyer, address _seller, uint256 _price, uint256 _commission, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
+    function receiveApproval(address _from, address _to, uint256 _tokenId) public onlyExtantToken(_tokenId) returns (bool) {
         require(msg.sender == acg20Contract, "Contract address must match the registered ACG20 contract");
 
-        require(ACG20Interface(acg20Contract).payForArtworkFrom(_buyer, _seller, _price, _commission, _tokenId), "ACG20 methold calling must return true");
-
-        transferFrom(_seller, _buyer, _tokenId);
+        transferFrom(_from, _to, _tokenId);
         return true;
     }
 }

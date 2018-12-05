@@ -10,7 +10,7 @@ contract('API Support: add_new_user()', function(accounts) {
     acg721 = await ACG721TOKEN.new();
     acg721Proxy = await ACG721PROXY.new(acg721.address);
     acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
-    await acg721Inst.transferOwnership(accounts[0]);
+    await acg721Inst.initializer({from: accounts[0]});
     
   });
   it("At the beginning, no extant artworks", async function() {
@@ -33,7 +33,7 @@ contract('API Support: post_new_artwork()', function(accounts) {
     acg721 = await ACG721TOKEN.new();
     acg721Proxy = await ACG721PROXY.new(acg721.address);
     acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
-    await acg721Inst.transferOwnership(accounts[0]);
+    await acg721Inst.initializer({from: accounts[0]});
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",
@@ -91,7 +91,7 @@ contract('API Support: buy_artwork()', function(accounts) {
     acg721 = await ACG721TOKEN.new();
     acg721Proxy = await ACG721PROXY.new(acg721.address);
     acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
-    await acg721Inst.transferOwnership(accounts[0]);
+    await acg721Inst.initializer({from: accounts[0]});
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",
@@ -143,7 +143,7 @@ contract('API Support: check_artwork()', function(accounts) {
     acg721 = await ACG721TOKEN.new();
     acg721Proxy = await ACG721PROXY.new(acg721.address);
     acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
-    await acg721Inst.transferOwnership(accounts[0]);
+    await acg721Inst.initializer({from: accounts[0]});
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",
@@ -192,7 +192,7 @@ contract('Code dev: approve() and transferFrom()', function(accounts) {
     acg721 = await ACG721TOKEN.new();
     acg721Proxy = await ACG721PROXY.new(acg721.address);
     acg721Inst = await ACG721TOKEN.at(acg721Proxy.address);
-    await acg721Inst.transferOwnership(accounts[0]);
+    await acg721Inst.initializer({from: accounts[0]});
     artwork1 = {
       "type":"paint",
       "artist":"Qin Wang",

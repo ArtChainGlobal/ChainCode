@@ -3,7 +3,7 @@ pragma solidity ^0.4.24;
 import "./SafeMath.sol";
 
 contract ACG721Interface {
-    function receiveApproval(address _from, address _to, uint256 _price, uint256 _commission, uint256 _tokenId) public returns (bool)
+    function receiveApproval(address _from, address _to, uint256 _tokenId) public returns (bool)
     {}
 }
 
@@ -147,6 +147,10 @@ contract ACG20 is StandardERC20 {
         decimals = 2;
         owner = msg.sender;
         emit OwnershipTransferred(address(0), msg.sender);
+    }
+
+    function version() public pure returns (string) {
+        return "v1.0_5DEC2018_U";
     }
 
    	/**
@@ -342,27 +346,46 @@ contract ACG20 is StandardERC20 {
     *
     * Throws if:
     * - A NFT contract has not been registered yet, or
-    * - call to `approve()` failed, or
+    * - call to `bulkTransfer()` failed, or
     * - call to `receiveApproval()` of the registered NFT contract failed.
     *
-    * The method introduces both this and the NFT contract accounts in the transaction as the intermediator, and establishes:
-    * Step 1: `msg.sender` approves amount (`_price`+`_commission`) of his token to be transferred by the registered NFT contract;
+    * The method introduces the NFT contract accounts in the transaction as the intermediator, and establishes:
+    * Step 1: `msg.sender` call bulkTransfer, to transfer tokens to addresses in the recepient list, that might include not only the NFT owner but other roles involved in the trade, depending on different scenarios;
     * Step 2: `msg.sender` calls method `receiveApproval()` of the registered NFT contract;
     * Step 3: NFT contract, while be called on `receiveApproval()`, will:
-    *   Step 3.1: transfer tokens from `msg.sender` to `seller` with amount of `_price`, and to the contract owner with amount of `_commission` , and then:
-    *   Step 3.2: change owner of the NFT with id `_artworkId` to `msg.sender`
+    *   Step 3.1: change owner of the NFT with id `_artworkId` to `msg.sender`
     *
     * Note that before calling `approveAndCall()`, `_seller` is required to approve his NFT with id `_artworkId` to be transferred by this contract.
     *
-    * @param _seller address which the tokens are transferred to
-    * @param _price the amount of tokens transerred to _seller address
-    * @param _commission the amount of tokens transferred to contract owner as commission
+    * @param _price the total price of NFT token, in unit of ACG20 token
     * @param _artworkId the NFT id which the tokens are transferred for
+    * @param _recepients recepient list to which the tokens are transferred to. First element MUST be the owner of NFT, others are optional
+    * @param _amounts token amout list which will be transferred to corresponding recepient
 	*/
-    function approveAndCall(address _seller, uint256 _price, uint256 _commission, uint256 _artworkId) public {
-        require(acg721Contract != address(0), "Must register a valid contract before calling approveAndCall() method");
-        approve(acg721Contract, _price.add(_commission));
+    function safeTokenTrade(uint256 _price, uint256 _artworkId, address[] _recepients, uint256[] _amounts) public isForAuction(msg.sender, _price, _artworkId) {
+        require(_recepients[0] != address(0), "First recepient must have a valid address");
+        require(_recepients.length == _amounts.length, "Recepient list length must match amount list");
+        // Check if transfer amount is correct
+        uint256 totalTransfer = 0;
+        for(uint256 i = 0; i<_amounts.length; i++) {
+            totalTransfer = totalTransfer.add(_amounts[i]);
+        }
+        require(_price == totalTransfer, "Total transfer amount must match price");
 
-        require(ACG721Interface(acg721Contract).receiveApproval(msg.sender, _seller, _price, _commission, _artworkId), "approveAndCall() must ensure calling receiveApproval() succeed");
+        // Multiple transfer to recepients
+        require(bulkTransfer(_recepients, _amounts));
+
+        require(acg721Contract != address(0), "Must register a valid contract before calling approveAndCall() method");
+
+        require(ACG721Interface(acg721Contract).receiveApproval(_recepients[0], msg.sender, _artworkId), "approveAndCall() must ensure calling receiveApproval() succeed");
+    }
+
+    function bulkTransfer(address[] _addresses, uint256[] _amounts) internal returns (bool) {
+        for (uint256 i = 0; i<_addresses.length; i++) {
+            if (_addresses[i] != address(0)) {
+                require(super.transfer(_addresses[i], _amounts[i]), "Must ensure every transfer in bulk succeed");
+            }
+        }
+        return true;
     }
 }

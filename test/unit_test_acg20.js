@@ -14,7 +14,10 @@ contract('API Support: add_new_user()', function(accounts) {
     acg20 = await ACG20TOKEN.new();
     acg20Proxy = await ACG20PROXY.new(acg20.address);
     acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
-    await acg20Inst.transferOwnership(contractOwner);
+    await acg20Inst.initializer({from: contractOwner});
+
+    const ver_str = await acg20Inst.version.call();
+    console.log(ver_str);
 
     accounts.forEach(async (user) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -58,7 +61,7 @@ contract('API Support: buy_token()', function(accounts) {
     acg20 = await ACG20TOKEN.new();
     acg20Proxy = await ACG20PROXY.new(acg20.address);
     acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
-    await acg20Inst.transferOwnership(contractOwner);
+    await acg20Inst.initializer({from: contractOwner});
   });
   it("Initial total supply should be zero", async () => {
     let totalSupplyValue = await acg20Inst.totalSupply.call();
@@ -84,7 +87,7 @@ contract('API Support: buy_artwork()', function(accounts) {
     acg20 = await ACG20TOKEN.new();
     acg20Proxy = await ACG20PROXY.new(acg20.address);
     acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
-    await acg20Inst.transferOwnership(accounts[0]);
+    await acg20Inst.initializer({from: accounts[0]});
 
     accounts.forEach(async (user) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -177,7 +180,7 @@ contract('API Support: freeze_token()', function(accounts) {
     acg20 = await ACG20TOKEN.new();
     acg20Proxy = await ACG20PROXY.new(acg20.address);
     acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
-    await acg20Inst.transferOwnership(admin);
+    await acg20Inst.initializer({from: admin});
 
     accounts.forEach(async (user) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -310,7 +313,7 @@ contract('Code dev: burn() and burnFrom()', function(accounts) {
     acg20 = await ACG20TOKEN.new();
     acg20Proxy = await ACG20PROXY.new(acg20.address);
     acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
-    await acg20Inst.transferOwnership(accounts[0]);
+    await acg20Inst.initializer({from: accounts[0]});
 
     accounts.forEach(async (user, index) => {
       await acg20Inst.mint(user, userInitBalance);
@@ -365,7 +368,7 @@ contract('Code dev: transferOwnerShip', function(accounts) {
     acg20Proxy = await ACG20PROXY.new(acg20.address);
     acg20Inst = await ACG20TOKEN.at(acg20Proxy.address);
     owner = accounts[0];
-    await acg20Inst.transferOwnership(owner);
+    await acg20Inst.initializer({from: accounts[0]});
     newOwner = accounts[1];
   });
   it("After contract deployement, the owner should be who created the contract", async () => {
